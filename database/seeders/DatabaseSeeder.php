@@ -47,7 +47,7 @@ class DatabaseSeeder extends Seeder
         $users = [
             [
                 'email' => 'farmer@example.com',
-                'phone' => '+1234567890',
+                'phone' => '1234567890',
                 'full_name' => 'John Farmer',
                 'date_of_birth' => '1980-05-15',
                 'user_type' => 'farmer',
@@ -56,24 +56,24 @@ class DatabaseSeeder extends Seeder
                 'organization_name' => 'Green Farm Co.',
                 'organization_type' => 'individual',
                 'address' => '123 Farm Road, Rural Area',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('12345678'),
             ],
             [
                 'email' => 'bank@example.com',
-                'phone' => '+1234567891',
+                'phone' => '1234567891',
                 'full_name' => 'Agricultural Bank',
-                'date_of_birth' => null,
+                'date_of_birth' => '1985-01-01',
                 'user_type' => 'bank',
                 'gps_latitude' => 10.762622,
                 'gps_longitude' => 106.660172,
                 'organization_name' => 'AgriBank',
                 'organization_type' => 'bank',
                 'address' => '456 Bank Street, City Center',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('12345678'),
             ],
             [
                 'email' => 'verifier@example.com',
-                'phone' => '+1234567892',
+                'phone' => '1234567892',
                 'full_name' => 'Sarah Verifier',
                 'date_of_birth' => '1985-08-20',
                 'user_type' => 'verifier',
@@ -82,20 +82,20 @@ class DatabaseSeeder extends Seeder
                 'organization_name' => 'Carbon Verification Services',
                 'organization_type' => 'verification_company',
                 'address' => '789 Verification Ave, Business District',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('12345678'),
             ],
             [
                 'email' => 'cooperative@example.com',
-                'phone' => '+1234567893',
+                'phone' => '1234567893',
                 'full_name' => 'Farmers Cooperative',
-                'date_of_birth' => null,
+                'date_of_birth' => '1990-01-01',
                 'user_type' => 'cooperative',
                 'gps_latitude' => 10.762622,
                 'gps_longitude' => 106.660172,
                 'organization_name' => 'Sustainable Farmers Co-op',
                 'organization_type' => 'cooperative',
                 'address' => '321 Cooperative Way, Rural Area',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('12345678'),
             ],
         ];
 
@@ -106,7 +106,7 @@ class DatabaseSeeder extends Seeder
 
     private function createFarmProfiles()
     {
-        $farmer = User::where('user_type', 'farmer')->first();
+                $farmer = User::where('user_type', 'farmer')->first();
 
         if ($farmer) {
             FarmProfile::create([
@@ -157,7 +157,7 @@ class DatabaseSeeder extends Seeder
 
     private function createMrvDeclarations()
     {
-        $farmer = User::where('user_type', 'farmer')->first();
+        $farmer = User::where('user_type', 'f        armer')->first();
         $farmProfile = FarmProfile::first();
 
         if ($farmer && $farmProfile) {
@@ -242,7 +242,7 @@ class DatabaseSeeder extends Seeder
     private function createVerificationRecords()
     {
         $mrvDeclaration = MrvDeclaration::first();
-        $verifier = User::where('user_type', 'verifier')->first();
+                $verifier = User::where('user_type', 'verifier')->first();
 
         if ($mrvDeclaration && $verifier) {
             VerificationRecord::create([
@@ -265,7 +265,7 @@ class DatabaseSeeder extends Seeder
 
     private function createCarbonCredits()
     {
-        $mrvDeclaration = MrvDeclaration::first();
+        $mrvDeclaration = MrvDeclaration::first        ();
         $verificationRecord = VerificationRecord::first();
 
         if ($mrvDeclaration && $verificationRecord) {
@@ -288,7 +288,7 @@ class DatabaseSeeder extends Seeder
     private function createCarbonTransactions()
     {
         $carbonCredit = CarbonCredit::first();
-        $farmer = User::where('user_type', 'farmer')->first();
+        $farmer = User::where('user_type', 'farmer')->first(        );
         $buyer = User::where('user_type', 'bank')->first();
 
         if ($carbonCredit && $farmer && $buyer) {
@@ -325,7 +325,7 @@ class DatabaseSeeder extends Seeder
 
     private function createTrainingRecords()
     {
-        $farmer = User::where('user_type', 'farmer')->first();
+                $farmer = User::where('user_type', 'farmer')->first();
 
         if ($farmer) {
             TrainingRecord::create([
@@ -342,7 +342,7 @@ class DatabaseSeeder extends Seeder
 
     private function createFinancialRecords()
     {
-        $farmer = User::where('user_type', 'farmer')->first();
+        $farmer = User::where('user_type', 'farmer')->first        ();
         $bank = User::where('user_type', 'bank')->first();
 
         if ($farmer && $bank) {

@@ -6,11 +6,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     /**
      * The attributes that are mass assignable.
@@ -29,6 +30,7 @@ class User extends Authenticatable
         'organization_type',
         'address',
         'password',
+        'otp',
     ];
 
     /**
@@ -39,6 +41,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'otp',
     ];
 
     /**
@@ -55,6 +58,12 @@ class User extends Authenticatable
             'gps_latitude' => 'decimal:8',
             'gps_longitude' => 'decimal:8',
         ];
+    }
+
+    // Simplified OTP sender placeholder
+    public function sendOtp(string $otp): void
+    {
+        // Integrate mail/SMS here. For now, just log or no-op.
     }
 
     // Relationships
