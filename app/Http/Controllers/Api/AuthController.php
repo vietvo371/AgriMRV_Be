@@ -12,39 +12,19 @@ use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use App\Http\Resources\UserResource;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+
 class AuthController extends Controller
 {
     use ApiResponseTrait;
 
-    public function register(Request $request)
+    public function register(RegisterRequest $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
-            'password' => ['required', 'confirmed', 'min:8', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/[0-9]/'],
-            'phone' => ['required', 'regex:/^[+0-9\-\s]{10,}$/'],
-            'dob' => ['required', 'date', 'before_or_equal:' . now()->subYears(18)->toDateString()],
-            'role' => ['required', 'in:farmer,bank,cooperative,verifier,government,buyer'],
-            'gps_location' => ['required', 'regex:/^-?\d{1,2}\.\d+,\s*-?\d{1,3}\.\d+$/'],
-            'org_name' => ['nullable', 'string'],
-        ]);
+        $validated = $request->validated();
 
-        [$lat, $lon] = array_map('trim', explode(',', $validated['gps_location']));
+        $user = User::create($validated);
+        $token = $user->createToken('user_token')->plainTextToken;
 
-        $user = User::create([
-            'full_name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'phone' => $validated['phone'],
-            'date_of_birth' => $validated['dob'],
-            'user_type' => $validated['role'],
-            'gps_latitude' => $lat,
-            'gps_longitude' => $lon,
-            'organization_name' => $validated['org_name'] ?? null,
-            'organization_type' => $validated['role'] === 'bank' ? 'bank' : ($validated['role'] === 'cooperative' ? 'cooperative' : null),
-        ]);
-
-        $token = $user->createToken('api')->plainTextToken;
         return $this->success([
             'user' => $this->transformUser($user),
             'token' => $token,

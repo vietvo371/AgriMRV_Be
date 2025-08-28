@@ -13,7 +13,7 @@ class UserResource extends JsonResource
         if (!is_null($this->gps_latitude) && !is_null($this->gps_longitude)) {
             $gps = $this->gps_latitude.','.$this->gps_longitude;
         }
-        $role = $this->user_type === 'cooperative' ? 'coop' : $this->user_type;
+        $role = $this->user_type === 'farmer' ? 'farmer' : $this->user_type;
         return [
             'user_id' => $this->id,
             'role' => $role,

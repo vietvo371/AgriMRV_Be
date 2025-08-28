@@ -23,8 +23,9 @@ return new class extends Migration
             $table->string('organization_name')->nullable();
             $table->string('organization_type')->nullable();
             $table->string('address')->nullable();
-            $table->string('password'); 
+            $table->string('password');
             $table->string('otp')->nullable();
+            $table->string('avatar')->nullable();
             $table->timestamps();
         });
 

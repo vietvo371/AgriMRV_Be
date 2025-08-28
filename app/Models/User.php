@@ -31,6 +31,7 @@ class User extends Authenticatable
         'address',
         'password',
         'otp',
+        'avatar',
     ];
 
     /**
@@ -42,6 +43,7 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'otp',
+        'avatar',
     ];
 
     /**
