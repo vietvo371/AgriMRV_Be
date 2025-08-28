@@ -11,6 +11,9 @@ use App\Models\VerificationRecord;
 use App\Models\CarbonCredit;
 use App\Models\AiAnalysisResult;
 use App\Models\EvidenceFile;
+use App\Models\BlockchainAnchor;
+use App\Http\Requests\CreatePlotRequest;
+use App\Services\AiAnalysisSimulatorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -148,7 +151,7 @@ class PlotController extends Controller
                 return [
                     'id' => $e->id,
                     'type' => $e->file_type,
-                    'url' => $e->file_url,
+                    'url' => asset('storage/' . $e->file_url),
                     'uploadDate' => $this->formatYmd($e->capture_timestamp),
                 ];
             })->values();
@@ -191,7 +194,7 @@ class PlotController extends Controller
                 'plotBoundaries' => [
                     'coordinates' => $plot->boundary_coordinates ?? [],
                     'verified' => ($verification?->verification_status === 'approved'),
-                    'area' => (float) ($plot->area_hectares ?? $farm?->total_area_hectares ?? 0),
+                    'area' => (float) ($farm?->total_area_hectares ?? 0),
                 ],
                 'ricePractices' => [
                     'area' => $farm?->rice_area_hectares !== null ? (float) $farm->rice_area_hectares : 0.0,
@@ -315,25 +318,150 @@ class PlotController extends Controller
         ]);
     }
 
-    public function createPlot(Request $request)
+    public function createPlot(CreatePlotRequest $request)
     {
-        $validated = $request->validate([
-            'farm_profile_id' => ['required','exists:farm_profiles,id'],
-            'name' => ['required','string','max:100'],
-            'plot_type' => ['required','string','max:50'],
-            'total_area' => ['required','numeric'],
-            'boundary_coordinates' => ['nullable','array'],
-        ]);
+        try {
+            DB::beginTransaction();
 
-        $plot = PlotBoundary::create([
-            'farm_profile_id' => $validated['farm_profile_id'],
-            'plot_name' => $validated['name'],
-            'boundary_coordinates' => $validated['boundary_coordinates'] ?? [],
-            'area_hectares' => $validated['total_area'],
-            'plot_type' => $validated['plot_type'],
-        ]);
+            // Tìm hoặc tạo FarmProfile nếu không truyền farm_profile_id
+            $farmProfileId = (int) ($request->input('farm_profile_id') ?? 0);
+            if (!$farmProfileId) {
+                $area = (float) ($request->input('area_hectares') ?? $request->input('total_area') ?? 0);
+                $farm = FarmProfile::firstOrCreate(
+                    ['user_id' => $request->user()->id],
+                    [
+                        'total_area_hectares' => $area,
+                        'rice_area_hectares' => max(0, $area * 0.6),
+                        'agroforestry_area_hectares' => max(0, $area * 0.3),
+                        'primary_crop_type' => 'Rice',
+                        'farming_experience_years' => 1,
+                        'irrigation_type' => 'AWD',
+                        'soil_type' => 'Sandy loam',
+                    ]
+                );
+                $farmProfileId = $farm->id;
+            }
 
-        return $this->success(['plot' => $plot], 'Created', 201);
+            // Accept both alias fields from FE
+            $plotName = $request->input('plot_name') ?? $request->input('name');
+            $area = (float) ($request->input('area_hectares') ?? $request->input('total_area'));
+
+            $plot = PlotBoundary::create([
+                'farm_profile_id' => $farmProfileId,
+                'plot_name' => (string) $plotName,
+                'boundary_coordinates' => $request->input('boundary_coordinates', []),
+                'area_hectares' => $area,
+                'plot_type' => (string) $request->input('plot_type'),
+            ]);
+
+            $cp = $this->calculateCarbonPerformanceForRequest($request);
+            $mr = $this->calculateMRVReliabilityForRequest($request);
+            $est = $this->calculateEstimatedCreditsForRequest($request);
+
+            $decl = MrvDeclaration::create([
+                'user_id' => $request->user()->id,
+                'farm_profile_id' => $farmProfileId,
+                'declaration_period' => now()->format('Y') . '-Q' . ceil(now()->format('n') / 3),
+                'rice_sowing_date' => $request->input('rice_sowing_date'),
+                'awd_cycles_per_season' => $request->input('awd_cycles_per_season'),
+                'water_management_method' => $request->input('water_management_method'),
+                'straw_management' => $request->input('straw_management'),
+                'tree_density_per_hectare' => $request->input('tree_density_per_hectare'),
+                'tree_species' => $request->input('tree_species', []),
+                'intercrop_species' => $request->input('intercrop_species', []),
+                'planting_date' => $request->input('planting_date'),
+                'carbon_performance_score' => $cp,
+                'mrv_reliability_score' => $mr,
+                'estimated_carbon_credits' => $est,
+                'status' => 'draft',
+            ]);
+
+            if ($request->hasFile('evidence_files')) {
+                $ai = new AiAnalysisSimulatorService();
+                foreach ($request->file('evidence_files') as $file) {
+                    $e = EvidenceFile::create([
+                        'mrv_declaration_id' => $decl->id,
+                        'file_type' => $this->determineFileTypeFromMime($file->getMimeType()),
+                        'file_url' => $file->store('uploads/evidence', 'public'),
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_size_bytes' => $file->getSize(),
+                        'gps_latitude' => $request->input('gps_latitude'),
+                        'gps_longitude' => $request->input('gps_longitude'),
+                        'capture_timestamp' => now(),
+                        'description' => 'Uploaded during land record creation',
+                    ]);
+                    $ai->simulateAnalysis($e);
+                }
+            }
+
+            BlockchainAnchor::create([
+                'record_type' => 'mrv_declaration',
+                'record_id' => $decl->id,
+                'blockchain_network' => 'Ethereum',
+                'transaction_hash' => '0x' . substr(sha1('decl' . $decl->id), 0, 40),
+                'block_number' => 18000000 + $decl->id,
+                'gas_used' => 21000 + ($decl->id % 100),
+                'anchor_data' => [
+                    'declaration_hash' => substr(sha1(json_encode($decl->toArray())), 0, 40),
+                    'period' => $decl->declaration_period,
+                    'status' => $decl->status,
+                ],
+                'anchor_timestamp' => now(),
+                'verification_url' => 'https://etherscan.io/tx/0x' . substr(sha1('decl' . $decl->id), 0, 40),
+            ]);
+
+            DB::commit();
+
+            return $this->success([
+                'plot' => $plot,
+                'declaration' => $decl,
+            ], 'Created', 201);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return $this->error('Create plot failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    private function determineFileTypeFromMime(?string $mime): string
+    {
+        if (!$mime) return 'field_photo';
+        if (str_contains($mime, 'image')) return 'field_photo';
+        if (str_contains($mime, 'pdf')) return 'document';
+        return 'other';
+    }
+
+    private function calculateCarbonPerformanceForRequest(Request $request): float
+    {
+        $area = (float) $request->input('area_hectares', 0);
+        $treeDensity = (int) ($request->input('tree_density_per_hectare') ?? 0);
+
+        $ricePerHa = 0.66; // tCO2e/ha/season
+        $riceTarget = 0.8; // target
+        $cpRice = $area > 0 ? min(100, ($ricePerHa / $riceTarget) * 100) : 0;
+
+        $agroTarget = 1.5; // tCO2e/ha/year
+        $agroPerHa = ($treeDensity * 0.022 * 0.5); // per ha if density provided
+        $cpAgro = $area > 0 ? min(100, (($agroPerHa) / $agroTarget) * 100) : 0;
+
+        return round($cpRice * 0.6 + $cpAgro * 0.4, 2);
+    }
+
+    private function calculateMRVReliabilityForRequest(Request $request): float
+    {
+        $score = 50.0;
+        if ($request->filled('gps_latitude') && $request->filled('gps_longitude')) $score += 10;
+        if ($request->hasFile('evidence_files')) $score += 10;
+        if ($request->filled('awd_cycles_per_season')) $score += 5;
+        return (float) min(100, $score);
+    }
+
+    private function calculateEstimatedCreditsForRequest(Request $request): float
+    {
+        $area = (float) $request->input('area_hectares', 0);
+        $treeDensity = (int) ($request->input('tree_density_per_hectare') ?? 0);
+        $riceTotalReduction = 0.66 * $area;
+        $agroTotalSequestration = ($treeDensity * $area) * 0.022 * 0.5;
+        return round($riceTotalReduction + $agroTotalSequestration, 2);
     }
 
     public function updatePlot(Request $request, PlotBoundary $plot)

@@ -219,7 +219,7 @@ class DatabaseSeeder extends Seeder
                 'rice_area_hectares' => $riceArea,
                 'agroforestry_area_hectares' => $agroArea,
                 'primary_crop_type' => ['Rice', 'Rice', 'Rice', 'Rice', 'Rice'][$idx % 5],
-                'farming_experience_years' => 8 + $idx * 2,
+                'farming_experience_years' => 2 + $idx * 2,
                 'irrigation_type' => ['AWD', 'Flood irrigation', 'AWD', 'Sprinkler', 'AWD'][$idx % 5],
                 'soil_type' => ['Sandy loam', 'Clay loam', 'Silt loam', 'Sandy clay', 'Loamy sand'][$idx % 5],
             ]);
