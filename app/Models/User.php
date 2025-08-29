@@ -118,4 +118,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(FinancialRecord::class, 'bank_id');
     }
+
+    public function profileShares()
+    {
+        return $this->hasMany(ProfileShare::class);
+    }
 }

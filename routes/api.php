@@ -8,6 +8,11 @@ use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\PlotController;
 use App\Http\Controllers\Api\AiAnalysisController;
+use App\Http\Controllers\Api\CreditController;
+use App\Http\Controllers\Api\FinanceController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ProfileShareController;
+use App\Http\Controllers\Api\Admin\CarbonPriceController;
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
@@ -49,11 +54,56 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('ai/analyses/{id}/refresh', [AiAnalysisController::class, 'refresh']);
     Route::get('ai/analyses/{id}/report', [AiAnalysisController::class, 'report']);
     Route::post('ai/analyses/{id}/share', [AiAnalysisController::class, 'share']);
+    // Credit & Scoring APIs
+    Route::get('credit/profile', [CreditController::class, 'profile']);
+    Route::get('credit/mrv-data', [CreditController::class, 'mrvData']);
+    Route::get('credit/score-history', [CreditController::class, 'scoreHistory']);
+    Route::get('credit/score-breakdown', [CreditController::class, 'scoreBreakdown']);
+    Route::get('credit/monthly-change', [CreditController::class, 'monthlyChange']);
+
+    // Credit & Scoring APIs
+    Route::get('credit/profile', [CreditController::class, 'profile']);
+    Route::get('credit/mrv-data', [CreditController::class, 'mrvData']);
+    Route::get('credit/score-history', [CreditController::class, 'scoreHistory']);
+    Route::get('credit/score-breakdown', [CreditController::class, 'scoreBreakdown']);
+    Route::get('credit/monthly-change', [CreditController::class, 'monthlyChange']);
+
+
+    // Finance & Portfolio APIs
+    Route::get('finance/portfolio', [FinanceController::class, 'portfolio']);
+    Route::get('finance/verification-pipeline', [FinanceController::class, 'verificationPipeline']);
+    Route::get('finance/payment-history', [FinanceController::class, 'paymentHistory']);
+    Route::get('finance/projected-earnings', [FinanceController::class, 'projectedEarnings']);
+    Route::get('finance/performance-metrics', [FinanceController::class, 'performanceMetrics']);
+
+    // Profile & User Management APIs
+    Route::get('profile/user', [ProfileController::class, 'user']);
+    Route::get('profile/farm-stats', [ProfileController::class, 'farmStats']);
+    Route::get('profile/land-plots', [ProfileController::class, 'landPlots']);
+    Route::get('profile/yield-history', [ProfileController::class, 'yieldHistory']);
+    Route::get('profile/memberships', [ProfileController::class, 'memberships']);
+    Route::get('profile/loan-history', [ProfileController::class, 'loanHistory']);
+
+    // Profile Share APIs
+    Route::post('profile/share/generate', [ProfileShareController::class, 'generateShareCode']);
+    Route::get('profile/share/my-shares', [ProfileShareController::class, 'getMyShares']);
+    Route::post('profile/share/{shareCode}/deactivate', [ProfileShareController::class, 'deactivateShare']);
+});
+
+// Admin Carbon Price Management APIs (chỉ admin mới được truy cập)
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin/carbon-price')->group(function () {
+    Route::get('current', [CarbonPriceController::class, 'getCurrentPrice']);
+    Route::post('update', [CarbonPriceController::class, 'updatePrice']);
+    Route::get('history', [CarbonPriceController::class, 'getPriceHistory']);
+    Route::post('refresh', [CarbonPriceController::class, 'refreshPrice']);
+    Route::get('stats', [CarbonPriceController::class, 'getPriceStats']);
 });
 
 // Public signed share link
 Route::get('share/ai/{id}', [AiAnalysisController::class, 'sharedShow'])->name('ai.share')->middleware('signed');
 
-// Token check (validate/refresh)
+// Public Profile Share routes (không cần authentication)
+Route::get('profile/share/{shareCode}', [ProfileShareController::class, 'getSharedProfile']);
+Route::post('profile/share/{shareCode}/copy', [ProfileShareController::class, 'copyShareLink']);
 
 

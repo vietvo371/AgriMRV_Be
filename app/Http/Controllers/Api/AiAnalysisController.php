@@ -104,22 +104,30 @@ class AiAnalysisController extends Controller
         return $this->success(['message' => 'Reprocessing started', 'job_id' => $jobId], 202);
     }
 
-    public function report(Request $request, string $id): StreamedResponse
+    public function report(Request $request, string $id)
     {
         $row = $this->queryOwned($request)->where('ai_analysis_results.id', $id)->first();
         if (!$row) {
-            return response()->streamDownload(function () {}, 'not_found.pdf', [
-                'Content-Type' => 'application/pdf',
-            ], 'inline');
+            return $this->error('Not found', 404);
         }
 
         $mapped = $this->mapAnalysis($row);
-        $pdf = $this->renderMinimalPdf('AI Analysis Report', $mapped);
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf;
-        }, 'ai_analysis_' . $id . '.pdf', [
-            'Content-Type' => 'application/pdf',
-        ], 'inline');
+        $pdfContent = $this->renderMinimalPdf('AI Analysis Report', $mapped);
+
+        // Tạo file PDF trong storage để WebView có thể load
+        $fileName = 'ai_analysis_' . $id . '_' . time() . '.pdf';
+        $filePath = 'reports/' . $fileName;
+
+        Storage::disk('public')->put($filePath, $pdfContent);
+
+        // Trả về URL trực tiếp đến file PDF
+        $pdfUrl = asset('storage/' . $filePath);
+
+        return $this->success([
+            'pdf_url' => $pdfUrl,
+            'file_name' => $fileName,
+            'message' => 'PDF generated successfully'
+        ]);
     }
 
     public function share(Request $request, string $id)
@@ -191,7 +199,7 @@ class AiAnalysisController extends Controller
         $ef = $row->evidenceFile; /** @var EvidenceFile|null $ef */
         $decl = $ef ? MrvDeclaration::find($ef->mrv_declaration_id) : null;
         $farm = $decl ? FarmProfile::find($decl->farm_profile_id) : null;
-        $imageUrl = $ef ? url(Storage::url($ef->file_url)) : null;
+        $imageUrl = $ef ? asset('storage/' . $ef->file_url) : null;
         $status = $this->deriveStatus($row);
         return [
             'id' => (string) $row->id,
@@ -230,22 +238,78 @@ class AiAnalysisController extends Controller
 
     private function renderMinimalPdf(string $title, array $data): string
     {
-        // Very small valid PDF with plain text content
-        $text = $title . "\n\n" . json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        $text = str_replace(["\r","\n"], ['','\n'], $text);
-        $len = strlen($text);
+        // Tạo PDF report đẹp và có format
+        $content = $this->formatReportContent($title, $data);
+
         $pdf = "%PDF-1.4\n";
         $pdf .= "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n";
         $pdf .= "2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n";
         $pdf .= "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n";
-        $stream = "BT /F1 12 Tf 72 720 Td ({$text}) Tj ET";
+
+        $stream = "BT /F1 16 Tf 72 720 Td ({$title}) Tj ET\n";
+        $stream .= "BT /F1 12 Tf 72 680 Td ({$content}) Tj ET";
+
         $pdf .= "4 0 obj<</Length " . strlen($stream) . ">>stream\n{$stream}\nendstream endobj\n";
         $pdf .= "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n";
+
         $xrefPos = strlen($pdf);
         $pdf .= "xref\n0 6\n0000000000 65535 f \n";
-        // crude xref table (placeholders acceptable for simple viewers)
+        $pdf .= "0000000009 00000 n \n";
+        $pdf .= "0000000078 00000 n \n";
+        $pdf .= "0000000157 00000 n \n";
+        $pdf .= "0000000256 00000 n \n";
         $pdf .= "trailer<</Size 6/Root 1 0 R>>\nstartxref\n{$xrefPos}\n%%EOF";
+
         return $pdf;
+    }
+
+    private function formatReportContent(string $title, array $data): string
+    {
+        $content = "";
+
+        // Thông tin cơ bản
+        $content .= "Analysis ID: " . ($data['id'] ?? 'N/A') . "\n";
+        $content .= "Crop Type: " . ($data['crop_type'] ?? 'N/A') . "\n";
+        $content .= "Status: " . ($data['status'] ?? 'N/A') . "\n";
+        $content .= "Confidence: " . ($data['confidence'] ?? 'N/A') . "%\n";
+        $content .= "Location: " . ($data['location'] ?? 'N/A') . "\n";
+        $content .= "Analysis Date: " . ($data['analysis_date'] ?? 'N/A') . "\n\n";
+
+        // Findings
+        if (isset($data['findings'])) {
+            $content .= "FINDINGS:\n";
+            $content .= "• Crop Health: " . ($data['findings']['crop_health'] ?? 'N/A') . "%\n";
+            $content .= "• Authenticity: " . ($data['findings']['authenticity'] ?? 'N/A') . "%\n";
+            $content .= "• Maturity: " . ($data['findings']['maturity'] ?? 'N/A') . "%\n";
+            $content .= "• Quality: " . ($data['findings']['quality'] ?? 'N/A') . "%\n\n";
+        }
+
+        // Insights
+        if (isset($data['insights']) && is_array($data['insights'])) {
+            $content .= "INSIGHTS:\n";
+            foreach ($data['insights'] as $insight) {
+                $content .= "• " . $insight . "\n";
+            }
+            $content .= "\n";
+        }
+
+        // Recommendations
+        if (isset($data['recommendations']) && is_array($data['recommendations'])) {
+            $content .= "RECOMMENDATIONS:\n";
+            foreach ($data['recommendations'] as $rec) {
+                $content .= "• " . $rec . "\n";
+            }
+            $content .= "\n";
+        }
+
+        // Credit Impact
+        $content .= "Credit Impact: " . ($data['credit_impact'] ?? 'N/A') . " credits\n";
+
+        // Escape special characters for PDF
+        $content = str_replace(['(', ')', '\\', '/'], ['\\(', '\\)', '\\\\', '\\/'], $content);
+        $content = str_replace(["\r", "\n"], ['', '\\n'], $content);
+
+        return $content;
     }
 }
 
