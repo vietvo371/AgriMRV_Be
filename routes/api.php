@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\MrvDeclarationController;
 use App\Http\Controllers\Api\VerificationController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\PlotController;
+use App\Http\Controllers\Api\AiAnalysisController;
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
@@ -40,7 +41,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('dashboard/land-plots', [PlotController::class, 'createPlot']);
     Route::put('dashboard/land-plots/{plot}', [PlotController::class, 'updatePlot']);
     Route::delete('dashboard/land-plots/{plot}', [PlotController::class, 'deletePlot']);
+
+    // AI Analyses
+    Route::get('ai/analyses', [AiAnalysisController::class, 'index']);
+    Route::get('ai/analyses/stats', [AiAnalysisController::class, 'stats']);
+    Route::get('ai/analyses/{id}', [AiAnalysisController::class, 'show']);
+    Route::post('ai/analyses/{id}/refresh', [AiAnalysisController::class, 'refresh']);
+    Route::get('ai/analyses/{id}/report', [AiAnalysisController::class, 'report']);
+    Route::post('ai/analyses/{id}/share', [AiAnalysisController::class, 'share']);
 });
+
+// Public signed share link
+Route::get('share/ai/{id}', [AiAnalysisController::class, 'sharedShow'])->name('ai.share')->middleware('signed');
 
 // Token check (validate/refresh)
 

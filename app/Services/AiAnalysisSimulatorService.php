@@ -359,13 +359,13 @@ class AiAnalysisSimulatorService
     private function getCropHealthRecommendations(string $cropHealth, string $growthStage): string
     {
         if ($cropHealth === 'excellent') {
-            return 'Cây trồng phát triển rất tốt. Tiếp tục duy trì các biện pháp chăm sóc hiện tại.';
+            return 'Tree is healthy and growing well.';
         } elseif ($cropHealth === 'good') {
-            return 'Cây trồng phát triển tốt. Có thể tối ưu hóa thêm để đạt hiệu quả cao hơn.';
+            return 'Tree is healthy and growing well. You can optimize it to achieve higher efficiency.';
         } elseif ($cropHealth === 'fair') {
-            return 'Cây trồng cần được chăm sóc thêm. Kiểm tra dinh dưỡng và tưới tiêu.';
+            return 'Tree needs more care. Check nutrient levels and irrigation.';
         } else {
-            return 'Cây trồng cần được can thiệp ngay. Kiểm tra sâu bệnh và điều kiện môi trường.';
+            return 'Tree needs immediate intervention. Check pests and environmental conditions.';
         }
     }
 
