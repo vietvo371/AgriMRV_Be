@@ -13,10 +13,16 @@ use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProfileShareController;
 use App\Http\Controllers\Api\Admin\CarbonPriceController;
+use App\Http\Controllers\Api\CooperativeController;
+use App\Http\Controllers\Api\VerifierController;
+use App\Http\Controllers\Api\BankController;
+use App\Http\Controllers\Api\GovernmentController;
+use App\Http\Controllers\Api\BuyerController;
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('web-login', [AuthController::class, 'webLogin']); // New web login method
     Route::post('request-otp', [AuthController::class, 'requestOtp']);
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('user', [AuthController::class, 'user']);
@@ -88,6 +94,48 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('profile/share/generate', [ProfileShareController::class, 'generateShareCode']);
     Route::get('profile/share/my-shares', [ProfileShareController::class, 'getMyShares']);
     Route::post('profile/share/{shareCode}/deactivate', [ProfileShareController::class, 'deactivateShare']);
+
+    // Cooperative APIs
+    Route::middleware('role:cooperative')->prefix('cooperative')->group(function () {
+        Route::get('members', [CooperativeController::class, 'members']);
+        Route::get('stats', [CooperativeController::class, 'stats']);
+    });
+
+    // Verifier APIs
+    Route::middleware('role:verifier')->prefix('verifier')->group(function () {
+        Route::get('queue', [VerifierController::class, 'queue']);
+        Route::get('my-verifications', [VerifierController::class, 'myVerifications']);
+        Route::get('analytics', [VerifierController::class, 'analytics']);
+        Route::get('ai-insights', [VerifierController::class, 'aiInsights']);
+    });
+
+    // Test route without middleware
+    Route::get('test', function () {
+        return response()->json(['message' => 'API is working']);
+    });
+
+    // Test route with auth middleware
+    Route::middleware('auth:sanctum')->get('test-auth', function () {
+        return response()->json(['message' => 'Auth test successful', 'user' => request()->user()]);
+    });
+
+    // Bank APIs
+    Route::middleware('role:bank')->prefix('bank')->group(function () {
+        Route::get('loan-applications', [BankController::class, 'loanApplications']);
+        Route::post('loans/{record}/approve', [BankController::class, 'approveLoan']);
+    });
+
+    // Government APIs
+    Route::middleware('role:government')->prefix('government')->group(function () {
+        Route::get('registry', [GovernmentController::class, 'registry']);
+        Route::get('anchors', [GovernmentController::class, 'anchors']);
+    });
+
+    // Buyer APIs
+    Route::middleware('role:buyer')->prefix('buyer')->group(function () {
+        Route::get('marketplace', [BuyerController::class, 'marketplace']);
+        Route::post('purchase/{credit}', [BuyerController::class, 'purchase']);
+    });
 });
 
 // Admin Carbon Price Management APIs (chỉ admin mới được truy cập)

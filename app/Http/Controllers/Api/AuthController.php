@@ -18,6 +18,23 @@ class AuthController extends Controller
 {
     use ApiResponseTrait;
 
+    public function actionLogin(Request $request)
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required'],
+        ]);
+        $user = User::where('email', $request->email)->first();
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return redirect()->back()->with('error', 'Invalid credentials');
+        }
+        $token = $user->createToken('user_token')->plainTextToken;
+        return response()->json([
+            'message' => 'Login successful',
+            'user' => new UserResource($user),
+            'token' => $token,
+        ]);
+    }
     public function register(RegisterRequest $request)
     {
         $validated = $request->validated();
@@ -48,6 +65,39 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'user' => new UserResource($user),
             'token' => $token,
+        ]);
+    }
+
+    public function webLogin(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Email hoặc mật khẩu không đúng'
+            ], 422);
+        }
+
+        // Tạo session cho web routes
+        \Illuminate\Support\Facades\Auth::login($user);
+
+        // Tạo JWT token cho API calls
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Đăng nhập thành công',
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email,
+                'full_name' => $user->full_name,
+                'user_type' => $user->user_type
+            ],
+            'token' => $token
         ]);
     }
 
