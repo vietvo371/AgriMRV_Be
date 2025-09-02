@@ -36,8 +36,7 @@ class AiAnalysisController extends Controller
               ->leftJoin('farm_profiles', 'mrv_declarations.farm_profile_id', '=', 'farm_profiles.id')
               ->where(function ($w) use ($request) {
                   $userId = $request->user()->id;
-                  $w->where('mrv_declarations.user_id', '=', $userId)
-                    ->orWhere('farm_profiles.user_id', '=', $userId);
+                  $w->where('farm_profiles.user_id', '=', $userId);
               });
 
         // Text search by crop type or (rough) location via user's organization_name/address (fallback not joined here)
@@ -156,8 +155,7 @@ class AiAnalysisController extends Controller
             ->leftJoin('farm_profiles', 'mrv_declarations.farm_profile_id', '=', 'farm_profiles.id')
             ->where(function ($w) use ($request) {
                 $userId = $request->user()->id;
-                $w->where('mrv_declarations.user_id', '=', $userId)
-                  ->orWhere('farm_profiles.user_id', '=', $userId);
+                $w->where('farm_profiles.user_id', '=', $userId);
             })
             ->select('ai_analysis_results.*')
             ->get();
@@ -229,8 +227,7 @@ class AiAnalysisController extends Controller
           ->leftJoin('farm_profiles', 'mrv_declarations.farm_profile_id', '=', 'farm_profiles.id')
           ->where(function ($w) use ($request) {
               $userId = $request->user()->id;
-              $w->where('mrv_declarations.user_id', '=', $userId)
-                ->orWhere('farm_profiles.user_id', '=', $userId);
+              $w->where('farm_profiles.user_id', '=', $userId);
           })
           ->select('ai_analysis_results.*');
         return $q;

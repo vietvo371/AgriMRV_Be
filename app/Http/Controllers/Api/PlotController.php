@@ -137,7 +137,7 @@ class PlotController extends Controller
         $plot->load('farmProfile');
         $farm = $plot->farmProfile;
         $user = $farm?->user ?: \App\Models\User::find($farm?->user_id);
-        $latestDecl = $farm ? MrvDeclaration::where('farm_profile_id', $farm->id)->latest('id')->first() : null;
+        $latestDecl = $farm ? MrvDeclaration::where('farm_profile_id', $farm->id)->where('plot_boundary_id', $plot->id)->latest('id')->first() : null;
         $verification = $latestDecl ? VerificationRecord::where('mrv_declaration_id', $latestDecl->id)->latest('id')->first() : null;
         [$cp, $rel, $final] = $this->computeScores($farm, $latestDecl, $verification);
 
@@ -179,17 +179,17 @@ class PlotController extends Controller
             }
         }
 
-        $statusRaw = $latestDecl?->status ?? 'draft';
-        $status = $statusRaw === 'submitted' ? 'pending' : $statusRaw;
-        if ($statusRaw === 'submitted' && $verification && $verification->verification_status === 'pending') {
-            $status = 'processing';
-        }
+        // $statusRaw = $latestDecl?->status ?? 'draft';
+        // $status = $statusRaw === 'submitted' ? 'pending' : $statusRaw;
+        // if ($statusRaw === 'submitted' && $verification && $verification->verification_status === 'pending') {
+        //     $status = 'processing';
+        // }
 
         $detail = [
             'id' => (string) $plot->id,
             'plot_name' => $plot->plot_name ?? ('Plot #'.$plot->id),
             'location' => $user?->address ?? ($farm?->soil_type ?? 'Unknown'),
-            'status' => $status,
+            'status' => $latestDecl?->status ?? 'draft',
             'mrvData' => [
                 'plotBoundaries' => [
                     'coordinates' => $plot->boundary_coordinates ?? [],
@@ -359,7 +359,7 @@ class PlotController extends Controller
             $est = $this->calculateEstimatedCreditsForRequest($request);
 
             $decl = MrvDeclaration::create([
-                'user_id' => $request->user()->id,
+                'plot_boundary_id' => $plot->id,
                 'farm_profile_id' => $farmProfileId,
                 'declaration_period' => now()->format('Y') . '-Q' . ceil(now()->format('n') / 3),
                 'rice_sowing_date' => $request->input('rice_sowing_date'),

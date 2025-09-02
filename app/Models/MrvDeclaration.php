@@ -10,7 +10,7 @@ class MrvDeclaration extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
+        'plot_boundary_id',
         'farm_profile_id',
         'declaration_period',
         'rice_sowing_date',
@@ -42,9 +42,9 @@ class MrvDeclaration extends Model
     ];
 
     // Relationships
-    public function user()
+    public function plotBoundary()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(PlotBoundary::class, 'plot_boundary_id');
     }
 
     public function farmProfile()

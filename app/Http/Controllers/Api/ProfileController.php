@@ -29,10 +29,13 @@ class ProfileController extends Controller
         // Tính carbon grade dựa trên credit score
         $carbonGrade = $this->calculateCarbonGrade($user->id);
 
-        // Kiểm tra MRV verification status
-        $mrvVerified = MrvDeclaration::where('user_id', $user->id)
-            ->where('status', 'verified')
-            ->exists();
+        // Kiểm tra MRV verification status thông qua farm profile
+        $mrvVerified = false;
+        if ($farmProfile) {
+            $mrvVerified = MrvDeclaration::where('farm_profile_id', $farmProfile->id)
+                ->where('status', 'verified')
+                ->exists();
+        }
 
         return $this->success([
             'farmer' => [
@@ -63,9 +66,9 @@ class ProfileController extends Controller
         // Tính toán các stats
         $totalArea = $farmProfile->total_area_hectares;
 
-        $carbonCreditsEarned = CarbonCredit::whereHas('mrvDeclaration', function($q) use ($user) {
-            $q->where('user_id', $user->id);
-        })->where('status', 'verified')->sum('credit_amount');
+        $carbonCreditsEarned = CarbonCredit::whereHas('mrvDeclaration', function($q) use ($farmProfile) {
+            $q->where('farm_profile_id', $farmProfile->id);
+        })->where('status', 'issued')->sum('credit_amount');
 
         $verificationRate = $this->calculateVerificationRate($user->id);
 
@@ -75,11 +78,11 @@ class ProfileController extends Controller
             ->where('transaction_date', '>=', now()->subMonth())
             ->sum('amount');
 
-        $carbonReduction = MrvDeclaration::where('user_id', $user->id)
+        $carbonReduction = MrvDeclaration::where('farm_profile_id', $farmProfile->id)
             ->where('status', 'verified')
             ->sum('estimated_carbon_credits');
 
-        $mrvReliability = MrvDeclaration::where('user_id', $user->id)
+        $mrvReliability = MrvDeclaration::where('farm_profile_id', $farmProfile->id)
             ->where('status', 'verified')
             ->avg('mrv_reliability_score') ?? 0;
 
@@ -105,36 +108,48 @@ class ProfileController extends Controller
             return $this->error('No farm profile found', 404);
         }
 
-        // Lấy land plots
+        // Lấy land plots với relationship đúng
         $plots = PlotBoundary::where('farm_profile_id', $farmProfile->id)
+            ->with(['farmProfile'])
+            ->latest('id')
             ->get()
-            ->map(function ($plot) use ($user) {
-                // Lấy MRV declaration cho plot này thông qua farm_profile_id
-                $latestDeclaration = MrvDeclaration::where('farm_profile_id', $plot->farm_profile_id)
-                    ->where('user_id', $user->id)
-                    ->where('status', 'verified')
-                    ->latest()
-                    ->first();
+            ->map(function (PlotBoundary $plot) {
+                $farm = $plot->farmProfile;
+                $latestDecl = MrvDeclaration::where('farm_profile_id', $farm->id)->where('plot_boundary_id', $plot->id)->latest('id')->first();
+                $status = $latestDecl?->status ?? 'draft';
+                $verification = null;
+                $verificationDate = null;
+                $verificationScore = null;
 
-                $carbonScore = $this->calculateCarbonScore($latestDeclaration);
+                if ($latestDecl) {
+                    $verification = \App\Models\VerificationRecord::where('mrv_declaration_id', $latestDecl->id)->latest('id')->first();
+                    $verificationDate = $verification?->verification_date;
+                    $verificationScore = $verification?->verification_score;
+                }
+
+                // Sử dụng logic tính toán scores từ PlotController
+                [$cp, $rel, $final] = $this->computeScores($farm, $latestDecl, $verification);
 
                 return [
-                    'id' => $plot->id,
-                    'name' => $plot->plot_name,
-                    'location' => $this->getLocationFromCoordinates($plot->boundary_coordinates),
-                    'status' => $latestDeclaration ? $latestDeclaration->status : 'pending',
-                    'area' => round($plot->area_hectares, 2),
-                    'crop_type' => $plot->plot_type === 'rice' ? 'Rice' : 'Agroforestry',
-                    'carbon_score' => $carbonScore,
-                    'verification_date' => $latestDeclaration && $latestDeclaration->status === 'verified'
-                        ? $latestDeclaration->updated_at->format('Y-m-d')
-                        : null
+                    'id' => (string) $plot->id,
+                    'name' => $plot->plot_name ?? ('Plot #'.$plot->id),
+                    'location' => $farm->soil_type ?? 'Unknown',
+                    'total_area' => (float) ($plot->area_hectares ?? 0),
+                    'plot_type' => $plot->plot_type,
+                    'rice_area' => $farm->rice_area_hectares !== null ? (float) $farm->rice_area_hectares : null,
+                    'agroforestry_area' => $farm->agroforestry_area_hectares !== null ? (float) $farm->agroforestry_area_hectares : null,
+                    'status' => $status,
+                    'verification_date' => $this->formatYmd($verificationDate),
+                    'carbon_performance_score' => $cp,
+                    'mrv_reliability_score' => $rel,
+                    'final_score' => $final,
+                    'grade' => $this->gradeFromScore($final),
+                    'created_at' => $this->formatIso($plot->created_at),
+                    'updated_at' => $this->formatIso($plot->updated_at),
                 ];
             });
 
-        return $this->success([
-            'land_plots' => $plots
-        ]);
+        return $this->success(['land_plots' => $plots]);
     }
 
     public function yieldHistory(Request $request)
@@ -224,7 +239,12 @@ class ProfileController extends Controller
     // Helper methods
     private function calculateCarbonGrade(int $userId): string
     {
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $farmProfile = FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) {
+            return 'F';
+        }
+
+        $declarations = MrvDeclaration::where('farm_profile_id', $farmProfile->id)
             ->where('status', 'verified')
             ->get();
 
@@ -250,8 +270,13 @@ class ProfileController extends Controller
 
     private function calculateVerificationRate(int $userId): float
     {
-        $total = MrvDeclaration::where('user_id', $userId)->count();
-        $verified = MrvDeclaration::where('user_id', $userId)
+        $farmProfile = FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) {
+            return 0;
+        }
+
+        $total = MrvDeclaration::where('farm_profile_id', $farmProfile->id)->count();
+        $verified = MrvDeclaration::where('farm_profile_id', $farmProfile->id)
             ->where('status', 'verified')
             ->count();
 
@@ -260,22 +285,19 @@ class ProfileController extends Controller
 
     private function calculateCarbonScore($declaration): string
     {
-        if (!$declaration) return 'N/A';
+        if (!$declaration) return 'F';
 
-        $score = ($declaration->carbon_performance_score + $declaration->mrv_reliability_score) / 2;
+        // Tính final score từ carbon performance và mrv reliability
+        $cp = $declaration->carbon_performance_score ?? 0;
+        $mr = $declaration->mrv_reliability_score ?? 0;
+        $finalScore = ($cp * 0.7) + ($mr * 0.3);
 
-        if ($score >= 90) return 'A+';
-        if ($score >= 85) return 'A';
-        if ($score >= 80) return 'A-';
-        if ($score >= 75) return 'B+';
-        if ($score >= 70) return 'B';
-        if ($score >= 65) return 'B-';
-        if ($score >= 60) return 'C+';
-        if ($score >= 55) return 'C';
-        if ($score >= 50) return 'C-';
-        if ($score >= 45) return 'D+';
-        if ($score >= 40) return 'D';
-        return 'F';
+        // Gán grade dựa trên công thức tính toán
+        if ($finalScore >= 75) return 'A'; // Xuất sắc: CP ≥ 75 và MR ≥ 75
+        if ($finalScore >= 60) return 'B'; // Tốt: CP ≥ 60 và MR ≥ 60
+        if ($finalScore >= 45) return 'C'; // Trung bình: CP ≥ 45 và MR ≥ 45
+        if ($finalScore >= 30) return 'D'; // Yếu: CP ≥ 30 và MR ≥ 30
+        return 'F'; // Kém: CP < 30 hoặc MR < 30
     }
 
     private function getLocationFromCoordinates($coordinates): string
@@ -327,5 +349,110 @@ class ProfileController extends Controller
         if ($repaymentRate >= 80) return 'fair';
         if ($repaymentRate >= 70) return 'poor';
         return 'very_poor';
+    }
+
+    /**
+     * Tính toán scores cho Carbon Performance, MRV Reliability và Final Score
+     * Dựa trên công thức carbon reduction/sequestration thực tế
+     */
+    private function computeScores(FarmProfile $farm = null, MrvDeclaration $decl = null, \App\Models\VerificationRecord $ver = null): array
+    {
+        if (!$farm || !$decl) {
+            return [0, 0, 0];
+        }
+
+        $riceArea = $farm->rice_area_hectares ?? 0;
+        $agroArea = $farm->agroforestry_area_hectares ?? 0;
+        $treeDensity = $decl->tree_density_per_hectare ?? 0;
+
+        // === BƯỚC 1: TÍNH CARBON REDUCTION/SEQUESTRATION (tCO₂e) ===
+
+        // Lúa AWD: Giảm methane và không đốt rơm rạ
+        $baselineCH4 = 1.2; // tCO₂e/ha/season (methane từ ruộng ngập nước truyền thống)
+        $awdReduction = $baselineCH4 * 0.3; // 30% giảm methane từ AWD = 0.36 tCO₂e/ha/season
+        $strawAvoidance = 0.3; // tCO₂e/ha/season (không đốt rơm rạ)
+        $ricePerHa = $awdReduction + $strawAvoidance; // Tổng = 0.66 tCO₂e/ha/season
+        $riceTotalReduction = $ricePerHa * $riceArea; // Tổng carbon reduction cho toàn bộ diện tích lúa
+
+        // Nông lâm kết hợp: Cây hấp thụ CO2 từ khí quyển
+        $carbonPerTree = 0.022; // tCO₂/cây/năm (theo nghiên cứu thực tế)
+        $treesTotal = $treeDensity * $agroArea; // Tổng số cây trên toàn bộ diện tích
+        $agroTotalSequestration = $treesTotal * $carbonPerTree * 0.5; // Nửa năm demo
+
+        // === BƯỚC 2: TÍNH ĐIỂM CARBON PERFORMANCE (CP) ===
+
+        // Mục tiêu để đạt 100 điểm
+        $riceTarget = 0.8; // tCO₂e/ha/season (mục tiêu cho lúa)
+        $agroTarget = 1.5; // tCO₂e/ha/năm (mục tiêu cho nông lâm)
+
+        // Tính điểm từng loại (tối đa 100 điểm)
+        $cpRice = min(100, ($ricePerHa / $riceTarget) * 100); // Điểm lúa
+        $cpAgro = min(100, ($agroTotalSequestration / $agroArea / $agroTarget) * 100); // Điểm nông lâm
+
+        // Điểm tổng hợp: 60% lúa + 40% nông lâm (weighted average)
+        $cpTotal = $cpRice * 0.6 + $cpAgro * 0.4;
+
+        // === BƯỚC 3: TÍNH ĐIỂM MRV RELIABILITY (MR) ===
+
+        // Lấy AI confidence score từ evidence files
+        $aiConfidence = 0.0;
+        if ($decl) {
+            $evidenceIds = $decl->evidenceFiles()->pluck('id');
+            $aiConfidence = (float) (\App\Models\AiAnalysisResult::whereIn('evidence_file_id', $evidenceIds)->max('confidence_score') ?? 0);
+        }
+
+        $verScore = (float) ($ver?->verification_score ?? 0); // Điểm verification
+        $declReliability = (float) ($decl?->mrv_reliability_score ?? 0); // Điểm reliability từ declaration
+
+        // Tính MRV Reliability: 50% lúa + 50% nông lâm
+        $mrRice = 75 + ($aiConfidence * 0.2); // Base 75 + ảnh hưởng AI (0-20 điểm)
+        $mrAgro = 70 + ($verScore * 0.3); // Base 70 + ảnh hưởng verification (0-30 điểm)
+        $mrTotal = $mrRice * 0.5 + $mrAgro * 0.5;
+
+        // === BƯỚC 4: TÍNH FINAL SCORE ===
+        // 70% Carbon Performance + 30% MRV Reliability
+        $final = round(min(100, $cpTotal * 0.7 + $mrTotal * 0.3), 2);
+
+        return [round($cpTotal, 2), round($mrTotal, 2), $final];
+    }
+
+    /**
+     * Gán grade (A/B/C/D/F) dựa trên final score
+     * Dựa trên công thức: CP ≥ 75 và MR ≥ 75 thì grade A
+     */
+    public function gradeFromScore($score): string
+    {
+        // Gán grade dựa trên công thức tính toán
+        if ($score >= 75) return 'A'; // Xuất sắc: CP ≥ 75 và MR ≥ 75
+        if ($score >= 60) return 'B'; // Tốt: CP ≥ 60 và MR ≥ 60
+        if ($score >= 45) return 'C'; // Trung bình: CP ≥ 45 và MR ≥ 45
+        if ($score >= 30) return 'D'; // Yếu: CP ≥ 30 và MR ≥ 30
+        return 'F'; // Kém: CP < 30 hoặc MR < 30
+    }
+
+    private function formatIso($value): ?string
+    {
+        if (empty($value)) return null;
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format(DATE_ATOM);
+        }
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->toIso8601String();
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    private function formatYmd($value): ?string
+    {
+        if (empty($value)) return null;
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+        try {
+            return \Illuminate\Support\Carbon::parse($value)->format('Y-m-d');
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }

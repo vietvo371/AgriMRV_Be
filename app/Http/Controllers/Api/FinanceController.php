@@ -29,11 +29,11 @@ class FinanceController extends Controller
 
         // Lấy carbon credits của user thông qua mrv_declarations
         $verifiedCredits = CarbonCredit::whereHas('mrvDeclaration', function($q) use ($user) {
-            $q->where('user_id', $user->id);
+            $q->where('farm_profile_id', $user->id);
         })->where('status', 'verified')->sum('credit_amount');
 
         $pendingCredits = CarbonCredit::whereHas('mrvDeclaration', function($q) use ($user) {
-            $q->where('user_id', $user->id);
+            $q->where('farm_profile_id', $user->id);
         })->where('status', 'pending')->sum('credit_amount');
 
         $totalCredits = $verifiedCredits + $pendingCredits;
@@ -45,7 +45,7 @@ class FinanceController extends Controller
 
         // Tính monthly change
         $lastMonthCredits = CarbonCredit::whereHas('mrvDeclaration', function($q) use ($user) {
-            $q->where('user_id', $user->id);
+            $q->where('farm_profile_id', $user->id);
         })->where('status', 'verified')
             ->whereMonth('issued_date', now()->subMonth()->month)
             ->sum('credit_amount');
@@ -53,8 +53,8 @@ class FinanceController extends Controller
         $monthlyChange = $lastMonthCredits > 0 ? (($verifiedCredits - $lastMonthCredits) / $lastMonthCredits) * 100 : 0;
 
         // Tính success rate
-        $totalDeclarations = MrvDeclaration::where('user_id', $user->id)->count();
-        $verifiedDeclarations = MrvDeclaration::where('user_id', $user->id)
+        $totalDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)->count();
+        $verifiedDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)
             ->where('status', 'verified')
             ->count();
         $successRate = $totalDeclarations > 0 ? ($verifiedDeclarations / $totalDeclarations) * 100 : 0;
@@ -77,7 +77,7 @@ class FinanceController extends Controller
         $user = $request->user();
 
         // Lấy MRV declarations của user
-        $declarations = MrvDeclaration::where('user_id', $user->id)
+        $declarations = MrvDeclaration::where('farm_profile_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->take(5)
             ->get();
@@ -239,15 +239,15 @@ class FinanceController extends Controller
         $averagePrice = $currentPrice; // Sử dụng giá hiện tại làm average
 
         // Verification success rate
-        $totalDeclarations = MrvDeclaration::where('user_id', $user->id)->count();
-        $verifiedDeclarations = MrvDeclaration::where('user_id', $user->id)
+        $totalDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)->count();
+        $verifiedDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)
             ->where('status', 'verified')
             ->count();
         $verificationSuccessRate = $totalDeclarations > 0 ? ($verifiedDeclarations / $totalDeclarations) * 100 : 0;
 
         // Market demand assessment
         $recentCredits = CarbonCredit::whereHas('mrvDeclaration', function($q) use ($user) {
-            $q->where('user_id', $user->id);
+            $q->where('farm_profile_id', $user->id);
         })->where('status', 'verified')
             ->where('issued_date', '>=', now()->subMonths(3))
             ->sum('credit_amount');

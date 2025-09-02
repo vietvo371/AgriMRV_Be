@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('mrv_declarations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('plot_boundary_id')->constrained('plot_boundaries')->onDelete('cascade');
             $table->foreignId('farm_profile_id')->constrained('farm_profiles')->onDelete('cascade');
             $table->string('declaration_period', 20);
 

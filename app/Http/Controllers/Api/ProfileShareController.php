@@ -56,7 +56,7 @@ class ProfileShareController extends Controller
             ->first();
 
         if (!$profileShare) {
-            return $this->error('Share code không hợp lệ hoặc đã hết hạn', [], 404);
+            return $this->error('Share code không hợp lệ hoặc đã hết hạn', 404);
         }
 
         // Tăng view count
@@ -78,7 +78,10 @@ class ProfileShareController extends Controller
             'farmer' => [
                 'name' => $user->full_name,
                 'carbon_grade' => $carbonGrade,
-                'location' => $this->getLocationFromCoordinates($farmProfile->gps_coordinates ?? []),
+                'location' => $this->getLocationFromCoordinates([
+                    'latitude' => $user->gps_latitude,
+                    'longitude' => $user->gps_longitude
+                ]),
                 'mrv_verified' => $this->isMrvVerified($user->id)
             ],
             'farm_stats' => [
@@ -101,7 +104,7 @@ class ProfileShareController extends Controller
             ->first();
 
         if (!$profileShare) {
-            return $this->error('Share code không hợp lệ hoặc đã hết hạn', [], 404);
+            return $this->error('Share code không hợp lệ hoặc đã hết hạn', 404);
         }
 
         // Tăng view count
@@ -151,7 +154,7 @@ class ProfileShareController extends Controller
             ->first();
 
         if (!$profileShare) {
-            return $this->error('Share code không tồn tại', [], 404);
+            return $this->error('Share code không tồn tại', 404);
         }
 
         $profileShare->update(['is_active' => false]);
@@ -166,8 +169,13 @@ class ProfileShareController extends Controller
      */
     private function calculateCarbonGrade(int $userId): string
     {
+        $farmProfile = \App\Models\FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) {
+            return 'N/A';
+        }
+
         // Lấy MRV declarations đã verified
-        $declarations = \App\Models\MrvDeclaration::where('user_id', $userId)
+        $declarations = \App\Models\MrvDeclaration::where('farm_profile_id', $farmProfile->id)
             ->where('status', 'verified')
             ->get();
 
@@ -203,9 +211,9 @@ class ProfileShareController extends Controller
 
         $totalArea = $farmProfile->total_area_hectares;
 
-        $carbonCreditsEarned = \App\Models\CarbonCredit::whereHas('mrvDeclaration', function($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })->where('status', 'verified')->sum('credit_amount');
+        $carbonCreditsEarned = \App\Models\CarbonCredit::whereHas('mrvDeclaration', function($q) use ($farmProfile) {
+            $q->where('farm_profile_id', $farmProfile->id);
+        })->where('status', 'issued')->sum('credit_amount');
 
         $verificationRate = $this->calculateVerificationRate($userId);
 
@@ -231,9 +239,9 @@ class ProfileShareController extends Controller
         $areaScore = min(100, $farmProfile->total_area_hectares * 20);
 
         // Cộng điểm cho carbon credits
-        $carbonCredits = \App\Models\CarbonCredit::whereHas('mrvDeclaration', function($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })->where('status', 'verified')->sum('credit_amount');
+        $carbonCredits = \App\Models\CarbonCredit::whereHas('mrvDeclaration', function($q) use ($farmProfile) {
+            $q->where('farm_profile_id', $farmProfile->id);
+        })->where('status', 'issued')->sum('credit_amount');
         $carbonScore = min(100, $carbonCredits * 2);
 
         // Cộng điểm cho verification rate
@@ -247,15 +255,25 @@ class ProfileShareController extends Controller
 
     private function getCarbonCreditsEarned(int $userId): float
     {
-        return \App\Models\CarbonCredit::whereHas('mrvDeclaration', function($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })->where('status', 'verified')->sum('credit_amount');
+        $farmProfile = \App\Models\FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) {
+            return 0;
+        }
+
+        return \App\Models\CarbonCredit::whereHas('mrvDeclaration', function($q) use ($farmProfile) {
+            $q->where('farm_profile_id', $farmProfile->id);
+        })->where('status', 'issued')->sum('credit_amount');
     }
 
     private function calculateVerificationRate(int $userId): float
     {
-        $total = \App\Models\MrvDeclaration::where('user_id', $userId)->count();
-        $verified = \App\Models\MrvDeclaration::where('user_id', $userId)
+        $farmProfile = \App\Models\FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) {
+            return 0;
+        }
+
+        $total = \App\Models\MrvDeclaration::where('farm_profile_id', $farmProfile->id)->count();
+        $verified = \App\Models\MrvDeclaration::where('farm_profile_id', $farmProfile->id)
             ->where('status', 'verified')
             ->count();
 
@@ -264,7 +282,12 @@ class ProfileShareController extends Controller
 
     private function isMrvVerified(int $userId): bool
     {
-        return \App\Models\MrvDeclaration::where('user_id', $userId)
+        $farmProfile = \App\Models\FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) {
+            return false;
+        }
+
+        return \App\Models\MrvDeclaration::where('farm_profile_id', $farmProfile->id)
             ->where('status', 'verified')
             ->exists();
     }

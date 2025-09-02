@@ -259,92 +259,96 @@ class DatabaseSeeder extends Seeder
         $farmProfiles = FarmProfile::all();
         $quarters = ['2024-Q1', '2024-Q2', '2023-Q4', '2023-Q3'];
 
-                foreach ($farmProfiles as $idx => $farmProfile) {
+        foreach ($farmProfiles as $idx => $farmProfile) {
             // Tạo 1-3 báo cáo MRV cho mỗi farm (để có dữ liệu đa dạng)
             $numDeclarations = 1 + ($idx % 3);
 
-            for ($d = 1; $d <= $numDeclarations; $d++) {
-                $quarter = $quarters[($idx + $d) % count($quarters)];
+            $plotBoundaries = PlotBoundary::where('farm_profile_id', $farmProfile->id)->get();
 
-                // === LOGIC XỬ LÝ STATUS THEO WORKFLOW THỰC TẾ ===
-                // Status được xác định dựa trên logic nghiệp vụ, không phải random
-                $status = $this->determineDeclarationStatus($idx, $d, $numDeclarations);
+            foreach ($plotBoundaries as $plot) {
+                for ($d = 1; $d <= $numDeclarations; $d++) {
+                    $quarter = $quarters[($idx + $d) % count($quarters)];
 
-                // Đảm bảo mật độ cây đủ cao để có carbon sequestration có ý nghĩa
-                // Mật độ cây: 120-200 cây/ha (tăng dần theo farm và declaration)
-                $treeDensity = 120 + ($idx * 30) + ($d * 10);
+                    // === LOGIC XỬ LÝ STATUS THEO WORKFLOW THỰC TẾ ===
+                    // Status được xác định dựa trên logic nghiệp vụ, không phải random
+                    $status = $this->determineDeclarationStatus($idx, $d, $numDeclarations);
 
-                // Tính toán carbon performance dựa trên công thức thực tế
-                $riceArea = $farmProfile->rice_area_hectares;
-                $agroArea = $farmProfile->agroforestry_area_hectares;
+                    // Đảm bảo mật độ cây đủ cao để có carbon sequestration có ý nghĩa
+                    // Mật độ cây: 120-200 cây/ha (tăng dần theo farm và declaration)
+                    $treeDensity = 120 + ($idx * 30) + ($d * 10);
 
-                // === CÔNG THỨC TÍNH CARBON REDUCTION CHO LÚA AWD ===
-                // baselineCH4 = 1.2 tCO₂e/ha/season (methane từ ruộng ngập nước truyền thống)
-                // awdReduction = 0.36 tCO₂e/ha/season (30% giảm methane từ AWD)
-                // strawAvoidance = 0.3 tCO₂e/ha/season (không đốt rơm rạ)
-                // ricePerHa = 0.66 tCO₂e/ha/season (tổng carbon reduction)
-                $ricePerHa = 0.66;
-                $riceTotalReduction = $ricePerHa * $riceArea;
+                    // Tính toán carbon performance dựa trên công thức thực tế
+                    $riceArea = $farmProfile->rice_area_hectares;
+                    $agroArea = $farmProfile->agroforestry_area_hectares;
 
-                // === CÔNG THỨC TÍNH CARBON SEQUESTRATION CHO AGROFORESTRY ===
-                // carbonPerTree = 0.022 tCO₂/cây/năm (theo nghiên cứu)
-                // treesTotal = tổng số cây trên toàn bộ diện tích
-                // 0.5 = hệ số nửa năm (demo data)
-                $treesTotal = $treeDensity * $agroArea;
-                $agroTotalSequestration = $treesTotal * 0.022 * 0.5;
+                    // === CÔNG THỨC TÍNH CARBON REDUCTION CHO LÚA AWD ===
+                    // baselineCH4 = 1.2 tCO₂e/ha/season (methane từ ruộng ngập nước truyền thống)
+                    // awdReduction = 0.36 tCO₂e/ha/season (30% giảm methane từ AWD)
+                    // strawAvoidance = 0.3 tCO₂e/ha/season (không đốt rơm rạ)
+                    // ricePerHa = 0.66 tCO₂e/ha/season (tổng carbon reduction)
+                    $ricePerHa = 0.66;
+                    $riceTotalReduction = $ricePerHa * $riceArea;
 
-                // === TÍNH ĐIỂM CARBON PERFORMANCE (CP) ===
-                // riceTarget = 0.8 tCO₂e/ha/season (mục tiêu cho 100 điểm)
-                // agroTarget = 1.5 tCO₂e/ha/năm (mục tiêu cho 100 điểm)
-                $riceTarget = 0.8;
-                $agroTarget = 1.5;
+                    // === CÔNG THỨC TÍNH CARBON SEQUESTRATION CHO AGROFORESTRY ===
+                    // carbonPerTree = 0.022 tCO₂/cây/năm (theo nghiên cứu)
+                    // treesTotal = tổng số cây trên toàn bộ diện tích
+                    // 0.5 = hệ số nửa năm (demo data)
+                    $treesTotal = $treeDensity * $agroArea;
+                    $agroTotalSequestration = $treesTotal * 0.022 * 0.5;
 
-                // Tính điểm từng loại (tối đa 100 điểm)
-                $cpRice = min(100, ($ricePerHa / $riceTarget) * 100);
-                $cpAgro = min(100, ($agroTotalSequestration / $agroArea / $agroTarget) * 100);
+                    // === TÍNH ĐIỂM CARBON PERFORMANCE (CP) ===
+                    // riceTarget = 0.8 tCO₂e/ha/season (mục tiêu cho 100 điểm)
+                    // agroTarget = 1.5 tCO₂e/ha/năm (mục tiêu cho 100 điểm)
+                    $riceTarget = 0.8;
+                    $agroTarget = 1.5;
 
-                // Điểm tổng hợp: 60% lúa + 40% nông lâm (weighted average)
-                $cpTotal = $cpRice * 0.6 + $cpAgro * 0.4;
+                    // Tính điểm từng loại (tối đa 100 điểm)
+                    $cpRice = min(100, ($ricePerHa / $riceTarget) * 100);
+                    $cpAgro = min(100, ($agroTotalSequestration / $agroArea / $agroTarget) * 100);
 
-                // === TÍNH ĐIỂM MRV RELIABILITY (MR) ===
-                // mrRice: 75-95 điểm (dựa trên ảnh + GPS + nhật ký AWD)
-                // mrAgro: 70-95 điểm (dựa trên ảnh độ che phủ cây theo thời gian)
-                $mrRice = 75 + ($idx % 20);
-                $mrAgro = 70 + ($idx % 25);
+                    // Điểm tổng hợp: 60% lúa + 40% nông lâm (weighted average)
+                    $cpTotal = $cpRice * 0.6 + $cpAgro * 0.4;
 
-                // Điểm tổng hợp: 50% lúa + 50% nông lâm
-                $mrTotal = $mrRice * 0.5 + $mrAgro * 0.5;
+                    // === TÍNH ĐIỂM MRV RELIABILITY (MR) ===
+                    // mrRice: 75-95 điểm (dựa trên ảnh + GPS + nhật ký AWD)
+                    // mrAgro: 70-95 điểm (dựa trên ảnh độ che phủ cây theo thời gian)
+                    $mrRice = 75 + ($idx % 20);
+                    $mrAgro = 70 + ($idx % 25);
 
-                // === TÍNH CARBON CREDITS DỰ KIẾN ===
-                // Tổng carbon reduction + sequestration
-                $estimatedCredits = $riceTotalReduction + $agroTotalSequestration;
+                    // Điểm tổng hợp: 50% lúa + 50% nông lâm
+                    $mrTotal = $mrRice * 0.5 + $mrAgro * 0.5;
 
-                MrvDeclaration::create([
-                    'user_id' => $farmProfile->user_id,
-                    'farm_profile_id' => $farmProfile->id,
-                    'declaration_period' => $quarter,
-                    'rice_sowing_date' => date('Y-m-d', strtotime('-' . (90 + $d * 30) . ' days')),
-                    'rice_harvest_date' => date('Y-m-d', strtotime('-' . (30 + $d * 30) . ' days')),
-                    'awd_cycles_per_season' => 2 + ($idx % 3),
-                    'water_management_method' => ['Alternate wetting and drying', 'Flood irrigation', 'Sprinkler irrigation'][$idx % 3],
-                    'straw_management' => ['Incorporated into soil', 'Burned', 'Removed from field', 'Left on field'][$idx % 4],
-                    'tree_density_per_hectare' => $treeDensity,
-                    'tree_species' => [
-                        ['Mangrove', 'Acacia', 'Eucalyptus'],
-                        ['Bamboo', 'Teak', 'Mahogany'],
-                        ['Coconut', 'Mango', 'Jackfruit']
-                    ][$idx % 3],
-                    'intercrop_species' => [
-                        ['Beans', 'Peanuts', 'Soybeans'],
-                        ['Corn', 'Cassava', 'Sweet potato'],
-                        ['Vegetables', 'Herbs', 'Fruits']
-                    ][$idx % 3],
-                    'planting_date' => date('Y-m-d', strtotime('-' . (180 + $d * 30) . ' days')),
-                    'carbon_performance_score' => round($cpTotal, 2),
-                    'mrv_reliability_score' => round($mrTotal, 2),
-                    'estimated_carbon_credits' => round($estimatedCredits, 2),
-                    'status' => $status,
-                ]);
+                    // === TÍNH CARBON CREDITS DỰ KIẾN ===
+                    // Tổng carbon reduction + sequestration
+                    $estimatedCredits = $riceTotalReduction + $agroTotalSequestration;
+
+                    MrvDeclaration::create([
+                        'plot_boundary_id' => $plot->id,
+                        'farm_profile_id' => $farmProfile->id,
+                        'declaration_period' => $quarter,
+                        'rice_sowing_date' => date('Y-m-d', strtotime('-' . (90 + $d * 30) . ' days')),
+                        'rice_harvest_date' => date('Y-m-d', strtotime('-' . (30 + $d * 30) . ' days')),
+                        'awd_cycles_per_season' => 2 + ($idx % 3),
+                        'water_management_method' => ['Alternate wetting and drying', 'Flood irrigation', 'Sprinkler irrigation'][$idx % 3],
+                        'straw_management' => ['Incorporated into soil', 'Burned', 'Removed from field', 'Left on field'][$idx % 4],
+                        'tree_density_per_hectare' => $treeDensity,
+                        'tree_species' => [
+                            ['Mangrove', 'Acacia', 'Eucalyptus'],
+                            ['Bamboo', 'Teak', 'Mahogany'],
+                            ['Coconut', 'Mango', 'Jackfruit']
+                        ][$idx % 3],
+                        'intercrop_species' => [
+                            ['Beans', 'Peanuts', 'Soybeans'],
+                            ['Corn', 'Cassava', 'Sweet potato'],
+                            ['Vegetables', 'Herbs', 'Fruits']
+                        ][$idx % 3],
+                        'planting_date' => date('Y-m-d', strtotime('-' . (180 + $d * 30) . ' days')),
+                        'carbon_performance_score' => round($cpTotal, 2),
+                        'mrv_reliability_score' => round($mrTotal, 2),
+                        'estimated_carbon_credits' => round($estimatedCredits, 2),
+                        'status' => $status,
+                    ]);
+                }
             }
         }
     }

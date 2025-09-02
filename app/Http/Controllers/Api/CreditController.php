@@ -67,7 +67,7 @@ class CreditController extends Controller
         $plots = PlotBoundary::where('farm_profile_id', $farmProfile->id)->get();
 
         // Lấy MRV declarations
-        $declarations = MrvDeclaration::where('user_id', $user->id)
+        $declarations = MrvDeclaration::where('farm_profile_id', $user->id)
             ->where('status', 'verified')
             ->get();
 
@@ -81,12 +81,12 @@ class CreditController extends Controller
 
         // Lấy evidence photos
         $evidenceCount = EvidenceFile::whereHas('mrvDeclaration', function($q) use ($user) {
-            $q->where('user_id', $user->id);
+            $q->where('farm_profile_id', $user->id);
         })->count();
 
         // Tính completion rate
-        $totalDeclarations = MrvDeclaration::where('user_id', $user->id)->count();
-        $verifiedDeclarations = MrvDeclaration::where('user_id', $user->id)
+        $totalDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)->count();
+        $verifiedDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)
             ->where('status', 'verified')
             ->count();
         $completionRate = $totalDeclarations > 0 ? ($verifiedDeclarations / $totalDeclarations) * 100 : 0;
@@ -199,7 +199,7 @@ class CreditController extends Controller
 
     private function calculateCarbonPerformance(int $userId): float
     {
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $declarations = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->get();
 
@@ -213,7 +213,7 @@ class CreditController extends Controller
 
     private function calculateMRVReliability(int $userId): float
     {
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $declarations = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->get();
 
@@ -227,7 +227,7 @@ class CreditController extends Controller
 
     private function calculateCarbonReduction(int $userId): float
     {
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $declarations = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->get();
 
@@ -239,7 +239,7 @@ class CreditController extends Controller
         $startOfMonth = $date->copy()->startOfMonth();
         $endOfMonth = $date->copy()->endOfMonth();
 
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $declarations = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
             ->get();
@@ -256,7 +256,7 @@ class CreditController extends Controller
 
     private function calculateRiceFarmingScore(int $userId): array
     {
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $declarations = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->get();
 
@@ -285,7 +285,7 @@ class CreditController extends Controller
 
     private function calculateAgroforestryScore(int $userId): array
     {
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $declarations = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->get();
 
@@ -315,7 +315,7 @@ class CreditController extends Controller
     private function calculateEvidenceQualityScore(int $userId): array
     {
         $evidenceFiles = EvidenceFile::whereHas('mrvDeclaration', function($q) use ($userId) {
-            $q->where('user_id', $userId);
+            $q->where('farm_profile_id', $userId);
         })->get();
 
         $score = 0;
@@ -344,7 +344,7 @@ class CreditController extends Controller
 
     private function calculateGPSVerificationScore(int $userId): array
     {
-        $declarations = MrvDeclaration::where('user_id', $userId)
+        $declarations = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->get();
 
@@ -365,8 +365,8 @@ class CreditController extends Controller
 
     private function calculateDeclarationCompletionScore(int $userId): array
     {
-        $total = MrvDeclaration::where('user_id', $userId)->count();
-        $verified = MrvDeclaration::where('user_id', $userId)
+        $total = MrvDeclaration::where('farm_profile_id', $userId)->count();
+        $verified = MrvDeclaration::where('farm_profile_id', $userId)
             ->where('status', 'verified')
             ->count();
 
