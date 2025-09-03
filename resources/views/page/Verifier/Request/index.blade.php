@@ -21,39 +21,39 @@
         </div>
     </div>
 
-    <!-- Carbon Claims -->
+    <!-- Carbon Performance Score -->
     <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-card-header">
-                <span>Carbon Claims</span>
+                <span>Carbon Performance</span>
                 <div class="stat-card-icon success"><i class="fa fa-leaf"></i></div>
             </div>
-            <div class="stat-value" id="carbonClaims">0</div>
-            <div class="stat-label">tCO₂e claimed</div>
-        </div>
-    </div>
-
-    <!-- Evidence Files -->
-    <div class="col-md-3">
-        <div class="stat-card">
-            <div class="stat-card-header">
-                <span>Evidence Files</span>
-                <div class="stat-card-icon info"><i class="fa fa-file-alt"></i></div>
-            </div>
-            <div class="stat-value" id="evidenceCount">0</div>
-            <div class="stat-label">Files submitted</div>
-        </div>
-    </div>
-
-    <!-- Verification Score -->
-    <div class="col-md-3">
-        <div class="stat-card">
-            <div class="stat-card-header">
-                <span>Verification Score</span>
-                <div class="stat-card-icon warning"><i class="fa fa-star"></i></div>
-            </div>
-            <div class="stat-value" id="verificationScore">0</div>
+            <div class="stat-value" id="carbonPerformanceScore">0</div>
             <div class="stat-label">Out of 100</div>
+        </div>
+    </div>
+
+    <!-- MRV Reliability Score -->
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span>MRV Reliability</span>
+                <div class="stat-card-icon warning"><i class="fa fa-shield-alt"></i></div>
+            </div>
+            <div class="stat-value" id="mrvReliabilityScore">0</div>
+            <div class="stat-label">Out of 100</div>
+        </div>
+    </div>
+
+    <!-- Final Score & Grade -->
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span>Final Score</span>
+                <div class="stat-card-icon primary"><i class="fa fa-star"></i></div>
+            </div>
+            <div class="stat-value" id="finalScore">0</div>
+            <div class="stat-label" id="gradeLabel">Grade: -</div>
         </div>
     </div>
 </div>
@@ -147,6 +147,49 @@
                 </div>
             </div>
         </div>
+
+        <!-- Scores Breakdown -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fa fa-calculator me-2"></i>Scores Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h6 class="text-success">Carbon Performance</h6>
+                            <div class="h4 text-success" id="carbonPerformanceDetail">0</div>
+                            <small class="text-muted">60% Rice + 40% Agroforestry</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h6 class="text-warning">MRV Reliability</h6>
+                            <div class="h4 text-warning" id="mrvReliabilityDetail">0</div>
+                            <small class="text-muted">50% Rice + 50% Agroforestry</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h6 class="text-primary">Final Score</h6>
+                            <div class="h4 text-primary" id="finalScoreDetail">0</div>
+                            <small class="text-muted">70% CP + 30% MR</small>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Score Calculation Formula:</h6>
+                        <ul class="small text-muted">
+                            <li><strong>Carbon Performance:</strong> 60% Rice AWD (0.66 tCO₂e/ha) + 40% Agroforestry (0.022 tCO₂/tree/year)</li>
+                            <li><strong>MRV Reliability:</strong> 50% Rice (Base 75 + AI confidence) + 50% Agroforestry (Base 70 + verification score)</li>
+                            <li><strong>Final Score:</strong> 70% Carbon Performance + 30% MRV Reliability</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="col-md-4">
@@ -157,6 +200,9 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
+                    <button class="btn btn-secondary" onclick="submitDeclaration()" id="submitBtn" style="display:none;">
+                        <i class="fa fa-paper-plane me-2"></i>Submit Declaration
+                    </button>
                     <button class="btn btn-primary" onclick="scheduleFieldVisit()">
                         <i class="fa fa-calendar me-2"></i>Schedule Field Visit
                     </button>
@@ -230,14 +276,10 @@ let currentRequest = null;
 let requestId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up axios with authentication token
-    const token = localStorage.getItem('token');
-    if (token) {
-        axios.defaults.headers.common['Authorization'] = 'Bearer ' + token;
-    } else {
-        // Redirect to login if no token
-        window.location.href = '/login';
-        return;
+    // Set up axios with CSRF token for session authentication
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    if (csrfToken) {
+        axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
     }
 
     // Get request ID from URL
@@ -253,36 +295,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadRequestDetails(requestId) {
     try {
-        // Load MRV declaration details
-        const declarationResponse = await axios.get(`/api/mrv-declarations/${requestId}`);
-        const declaration = declarationResponse.data.data;
+        // Prefer consolidated detail endpoint
+        const detailUrl = `/verifier/api/request/detail/${requestId}`;
+        const resp = await axios.get(detailUrl);
+        const { declaration, farmer, farmProfile, evidenceFiles, aiResults } = resp.data.data || {};
 
-        // Load farmer details
-        const farmerResponse = await axios.get(`/api/users/${declaration.user_id}`);
-        const farmer = farmerResponse.data.data;
-
-        // Load farm profile
-        const farmResponse = await axios.get(`/api/farm-profiles/${declaration.farm_profile_id}`);
-        const farmProfile = farmResponse.data.data;
-
-        // Load evidence files
-        const evidenceResponse = await axios.get(`/api/evidence-files?mrv_declaration_id=${requestId}`);
-        const evidenceFiles = evidenceResponse.data.data;
-
-        // Load AI analysis results
-        const aiResponse = await axios.get(`/api/ai/analyses?mrv_declaration_id=${requestId}`);
-        const aiResults = aiResponse.data.data;
-
-        currentRequest = {
-            declaration,
-            farmer,
-            farmProfile,
-            evidenceFiles,
-            aiResults
-        };
-
+        currentRequest = { declaration, farmer, farmProfile, evidenceFiles, aiResults };
         updateUI();
-
     } catch (error) {
         console.error('Error loading request details:', error);
         showError('Không thể tải chi tiết request');
@@ -315,10 +334,66 @@ function updateUI() {
     document.getElementById('strawManagement').textContent = declaration.straw_management || 'N/A';
     document.getElementById('treeDensity').textContent = `${declaration.tree_density_per_hectare || 0} trees/ha`;
 
-    // Update stats
-    document.getElementById('carbonClaims').textContent = (declaration.estimated_carbon_credits || 0).toFixed(1);
-    document.getElementById('evidenceCount').textContent = evidenceFiles.length;
-    document.getElementById('verificationScore').textContent = (declaration.mrv_reliability_score || 0).toFixed(1);
+
+    // Update scores theo công thức backend
+    const carbonPerformance = declaration.carbon_performance_score || 0;
+    const mrvReliability = declaration.mrv_reliability_score || 0;
+    const finalScore = Math.min(100, carbonPerformance * 0.7 + mrvReliability * 0.3);
+    const grade = getGradeFromScore(finalScore);
+
+    document.getElementById('carbonPerformanceScore').textContent = carbonPerformance.toFixed(1);
+    document.getElementById('mrvReliabilityScore').textContent = mrvReliability.toFixed(1);
+    document.getElementById('finalScore').textContent = finalScore.toFixed(1);
+    document.getElementById('gradeLabel').textContent = `Grade: ${grade}`;
+
+    // Update scores breakdown section
+    document.getElementById('carbonPerformanceDetail').textContent = carbonPerformance.toFixed(1);
+    document.getElementById('mrvReliabilityDetail').textContent = mrvReliability.toFixed(1);
+    document.getElementById('finalScoreDetail').textContent = finalScore.toFixed(1);
+
+    // Add grade-specific styling
+    const finalScoreElement = document.getElementById('finalScore');
+    finalScoreElement.className = 'stat-value';
+    switch (grade) {
+        case 'A': finalScoreElement.classList.add('text-success'); break;
+        case 'B': finalScoreElement.classList.add('text-primary'); break;
+        case 'C': finalScoreElement.classList.add('text-warning'); break;
+        case 'D': finalScoreElement.classList.add('text-orange'); break;
+        case 'F': finalScoreElement.classList.add('text-danger'); break;
+        default: finalScoreElement.classList.add('text-muted');
+    }
+
+    // Update request status
+    const statusElement = document.getElementById('requestStatus');
+    const statusText = declaration.status || 'Unknown';
+    statusElement.textContent = statusText.charAt(0).toUpperCase() + statusText.slice(1);
+
+    // Add status-specific styling
+    statusElement.className = 'stat-value';
+    switch (declaration.status) {
+        case 'draft':
+            statusElement.classList.add('text-warning');
+            break;
+        case 'submitted':
+            statusElement.classList.add('text-info');
+            break;
+        case 'verified':
+            statusElement.classList.add('text-success');
+            break;
+        case 'rejected':
+            statusElement.classList.add('text-danger');
+            break;
+        default:
+            statusElement.classList.add('text-muted');
+    }
+
+    // Toggle submit button if status is draft
+    const submitBtn = document.getElementById('submitBtn');
+    if (declaration.status === 'draft') {
+        submitBtn.style.display = 'block';
+    } else {
+        submitBtn.style.display = 'none';
+    }
 
     // Update evidence files
     updateEvidenceFiles(evidenceFiles);
@@ -369,8 +444,8 @@ function updateAIAnalysis(results) {
                     <h6 class="card-title">${result.analysis_type}</h6>
                     <div class="mb-2">
                         <strong>Confidence:</strong>
-                        <span class="badge bg-${getConfidenceClass(result.confidence_score)}">
-                            ${(result.confidence_score || 0).toFixed(1)}%
+                        <span class="badge bg-${getConfidenceClass(Number(result.confidence_score ?? 0))}">
+                            ${Number(result.confidence_score ?? 0).toFixed(1)}%
                         </span>
                     </div>
                     <div class="mb-2">
@@ -390,6 +465,18 @@ function getConfidenceClass(score) {
     return 'danger';
 }
 
+/**
+ * Tính grade theo công thức backend
+ * A: ≥75, B: ≥60, C: ≥45, D: ≥30, F: <30
+ */
+function getGradeFromScore(score) {
+    if (score >= 75) return 'A'; // Xuất sắc
+    if (score >= 60) return 'B'; // Tốt
+    if (score >= 45) return 'C'; // Trung bình
+    if (score >= 30) return 'D'; // Yếu
+    return 'F'; // Kém
+}
+
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -400,17 +487,51 @@ function formatDate(dateString) {
 function scheduleFieldVisit() {
     if (!currentRequest) return;
 
+    // Kiểm tra status declaration
+    if (currentRequest.declaration?.status !== 'submitted') {
+        showError('Chỉ có thể schedule field visit cho declarations đã submitted');
+        return;
+    }
+
     Swal.fire({
         title: 'Schedule Field Visit',
-        text: `Schedule field visit for ${currentRequest.farmer.full_name}?`,
-        icon: 'question',
+        html: `
+            <div class="mb-3">
+                <label class="form-label">Verification Date *</label>
+                <input type="date" id="fieldVisitDate" class="form-control"
+                       min="${new Date().toISOString().slice(0,10)}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Notes (Optional)</label>
+                <textarea id="fieldVisitNotes" class="form-control" rows="3"
+                          placeholder="Add notes for field visit..."></textarea>
+            </div>
+        `,
         showCancelButton: true,
         confirmButtonText: 'Schedule',
-        cancelButtonText: 'Cancel'
-    }).then((result) => {
+        cancelButtonText: 'Cancel',
+        preConfirm: () => {
+            const date = document.getElementById('fieldVisitDate').value;
+            if (!date) {
+                Swal.showValidationMessage('Please select a verification date');
+                return false;
+            }
+            return {
+                verification_date: date,
+                notes: document.getElementById('fieldVisitNotes').value || null,
+                verification_type: 'field'
+            };
+        }
+    }).then(async (result) => {
         if (result.isConfirmed) {
-            // Redirect to schedule page
-            window.location.href = `/verifier/schedule?farmer_id=${currentRequest.farmer.id}&request_id=${requestId}`;
+            try {
+                await axios.post(`/verifier/api/declarations/${requestId}/schedule`, result.value);
+                showSuccess('Field visit scheduled successfully');
+                // Reload details để cập nhật status
+                await loadRequestDetails(requestId);
+            } catch (e) {
+                showError('Không thể schedule field visit: ' + (e.response?.data?.message || e.message));
+            }
         }
     });
 }
@@ -418,19 +539,38 @@ function scheduleFieldVisit() {
 function requestAdditionalEvidence() {
     if (!currentRequest) return;
 
+    // Kiểm tra status declaration
+    if (currentRequest.declaration?.status !== 'submitted') {
+        showError('Chỉ có thể yêu cầu evidence cho declarations đã submitted');
+        return;
+    }
+
     Swal.fire({
         title: 'Request Additional Evidence',
         input: 'textarea',
         inputLabel: 'Evidence Requirements',
         inputPlaceholder: 'Describe what additional evidence is needed...',
+        inputValidator: (value) => {
+            if (!value || value.trim().length < 10) {
+                return 'Vui lòng nhập ít nhất 10 ký tự mô tả yêu cầu evidence';
+            }
+        },
         showCancelButton: true,
         confirmButtonText: 'Send Request',
         cancelButtonText: 'Cancel'
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed && result.value) {
-            // Here you would send the request to backend
-            console.log('Requesting evidence:', result.value);
-            showSuccess('Evidence request sent successfully');
+            try {
+                await axios.post(`/verifier/api/declarations/${requestId}/request-revision`, {
+                    comments: result.value,
+                    verification_type: 'remote'
+                });
+                showSuccess('Evidence request sent successfully');
+                // Reload details để cập nhật status
+                await loadRequestDetails(requestId);
+            } catch (e) {
+                showError('Không thể gửi yêu cầu evidence: ' + (e.response?.data?.message || e.message));
+            }
         }
     });
 }
@@ -438,18 +578,64 @@ function requestAdditionalEvidence() {
 function approveRequest() {
     if (!currentRequest) return;
 
+    // Kiểm tra status declaration
+    if (currentRequest.declaration?.status !== 'submitted') {
+        showError('Chỉ có thể approve declarations đã submitted');
+        return;
+    }
+
     Swal.fire({
         title: 'Approve Request',
-        text: 'Are you sure you want to approve this MRV declaration?',
-        icon: 'question',
+        html: `
+            <div class="mb-3">
+                <label class="form-label">Verification Score (0-100)</label>
+                <input type="number" id="verificationScore" class="form-control"
+                       min="0" max="100" value="85"
+                       placeholder="Enter verification score">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Verification Type</label>
+                <select id="verificationType" class="form-control">
+                    <option value="remote">Remote Verification</option>
+                    <option value="field">Field Verification</option>
+                    <option value="hybrid">Hybrid Verification</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Comments (Optional)</label>
+                <textarea id="approvalComments" class="form-control" rows="3"
+                          placeholder="Add verification comments..."></textarea>
+            </div>
+        `,
         showCancelButton: true,
         confirmButtonText: 'Approve',
-        cancelButtonText: 'Cancel'
-    }).then((result) => {
+        cancelButtonText: 'Cancel',
+        preConfirm: () => {
+            const score = document.getElementById('verificationScore').value;
+            if (!score || score < 0 || score > 100) {
+                Swal.showValidationMessage('Please enter a valid score between 0-100');
+                return false;
+            }
+            return {
+                score: parseInt(score),
+                verification_type: document.getElementById('verificationType').value,
+                comments: document.getElementById('approvalComments').value
+            };
+        }
+    }).then(async (result) => {
         if (result.isConfirmed) {
-            // Here you would send approval to backend
-            console.log('Approving request:', requestId);
-            showSuccess('Request approved successfully');
+            try {
+                await axios.post(`/verifier/api/declarations/${requestId}/approve`, {
+                    score: result.value.score,
+                    verification_type: result.value.verification_type,
+                    comments: result.value.comments || null
+                });
+                showSuccess('Request approved successfully');
+                // Reload details để cập nhật status
+                await loadRequestDetails(requestId);
+            } catch (e) {
+                showError('Không thể approve request: ' + (e.response?.data?.message || e.message));
+            }
         }
     });
 }
@@ -457,19 +643,38 @@ function approveRequest() {
 function requestRevision() {
     if (!currentRequest) return;
 
+    // Kiểm tra status declaration
+    if (currentRequest.declaration?.status !== 'submitted') {
+        showError('Chỉ có thể yêu cầu revision cho declarations đã submitted');
+        return;
+    }
+
     Swal.fire({
         title: 'Request Revision',
         input: 'textarea',
         inputLabel: 'Revision Requirements',
         inputPlaceholder: 'Describe what needs to be revised...',
+        inputValidator: (value) => {
+            if (!value || value.trim().length < 10) {
+                return 'Vui lòng nhập ít nhất 10 ký tự mô tả yêu cầu revision';
+            }
+        },
         showCancelButton: true,
         confirmButtonText: 'Send Request',
         cancelButtonText: 'Cancel'
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed && result.value) {
-            // Here you would send revision request to backend
-            console.log('Requesting revision:', result.value);
-            showSuccess('Revision request sent successfully');
+            try {
+                await axios.post(`/verifier/api/declarations/${requestId}/request-revision`, {
+                    comments: result.value,
+                    verification_type: 'remote'
+                });
+                showSuccess('Revision request sent successfully');
+                // Reload details để cập nhật status
+                await loadRequestDetails(requestId);
+            } catch (e) {
+                showError('Không thể gửi yêu cầu revision: ' + (e.response?.data?.message || e.message));
+            }
         }
     });
 }
@@ -477,20 +682,57 @@ function requestRevision() {
 function rejectRequest() {
     if (!currentRequest) return;
 
+    // Kiểm tra status declaration - chỉ cho phép reject submitted declarations
+    if (currentRequest.declaration?.status !== 'submitted') {
+        showError('Chỉ có thể reject declarations đã submitted');
+        return;
+    }
+
     Swal.fire({
         title: 'Reject Request',
-        input: 'textarea',
-        inputLabel: 'Rejection Reason',
-        inputPlaceholder: 'Provide reason for rejection...',
+        html: `
+            <div class="mb-3">
+                <label class="form-label">Rejection Reason *</label>
+                <textarea id="rejectionReason" class="form-control" rows="4"
+                          placeholder="Provide detailed reason for rejection..." required></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Verification Type</label>
+                <select id="rejectionVerificationType" class="form-control">
+                    <option value="remote">Remote Verification</option>
+                    <option value="field">Field Verification</option>
+                    <option value="hybrid">Hybrid Verification</option>
+                </select>
+            </div>
+        `,
         showCancelButton: true,
         confirmButtonText: 'Reject',
         cancelButtonText: 'Cancel',
-        confirmButtonColor: '#dc3545'
-    }).then((result) => {
-        if (result.isConfirmed && result.value) {
-            // Here you would send rejection to backend
-            console.log('Rejecting request:', result.value);
-            showSuccess('Request rejected successfully');
+        confirmButtonColor: '#dc3545',
+        preConfirm: () => {
+            const reason = document.getElementById('rejectionReason').value;
+            if (!reason || reason.trim().length < 10) {
+                Swal.showValidationMessage('Please provide a detailed rejection reason (at least 10 characters)');
+                return false;
+            }
+            return {
+                reason: reason.trim(),
+                verification_type: document.getElementById('rejectionVerificationType').value
+            };
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                await axios.post(`/verifier/api/declarations/${requestId}/reject`, {
+                    reason: result.value.reason,
+                    verification_type: result.value.verification_type
+                });
+                showSuccess('Request rejected successfully');
+                // Reload details để cập nhật status
+                await loadRequestDetails(requestId);
+            } catch (e) {
+                showError('Không thể reject request: ' + (e.response?.data?.message || e.message));
+            }
         }
     });
 }
@@ -501,10 +743,38 @@ function saveNotes() {
         showError('Vui lòng nhập verification notes');
         return;
     }
+    showSuccess('Notes saved locally');
+}
 
-    // Here you would save notes to backend
-    console.log('Saving notes:', notes);
-    showSuccess('Notes saved successfully');
+async function submitDeclaration() {
+    if (!currentRequest) return;
+
+    // Kiểm tra status declaration
+    if (currentRequest.declaration?.status !== 'draft') {
+        showError('Chỉ có thể submit declarations đang ở trạng thái draft');
+        return;
+    }
+
+    // Xác nhận trước khi submit
+    const result = await Swal.fire({
+        title: 'Submit Declaration',
+        text: 'Are you sure you want to submit this declaration for verification?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Submit',
+        cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+        try {
+            await axios.post(`/verifier/api/declarations/${requestId}/submit`);
+            showSuccess('Declaration submitted successfully');
+            // Reload details để cập nhật status
+            await loadRequestDetails(requestId);
+        } catch (e) {
+            showError('Không thể submit declaration: ' + (e.response?.data?.message || e.message));
+        }
+    }
 }
 
 function viewFile(fileUrl) {

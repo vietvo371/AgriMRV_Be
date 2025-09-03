@@ -36,9 +36,9 @@ class MrvDeclaration extends Model
         'tree_density_per_hectare' => 'integer',
         'tree_species' => 'array',
         'intercrop_species' => 'array',
-        'carbon_performance_score' => 'decimal:2',
-        'mrv_reliability_score' => 'decimal:2',
-        'estimated_carbon_credits' => 'decimal:2',
+        'carbon_performance_score' => 'float',
+        'mrv_reliability_score' => 'float',
+        'estimated_carbon_credits' => 'float',
     ];
 
     // Relationships

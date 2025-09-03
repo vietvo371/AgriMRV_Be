@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AGRIMRV</title>
-    <link rel="icon" type="image/png" href="https://dzfullstack.com/assets/images/logo-img.png">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>AgriMRV - Verifier</title>
+    <link rel="icon" type="image/png" href="{{ asset('image/logo.png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -12,11 +13,12 @@
 
     <style>
         :root {
-            --bs-primary: #f16226;
-            --bs-primary-rgb: 241, 98, 38;
-            --primary-color: #f16226;
-            --secondary-color: #ee3127;
-            --accent-color: #f59321;
+            /* Agriculture theme - fresh green */
+            --bs-primary: #2e7d32;
+            --bs-primary-rgb: 46, 125, 50;
+            --primary-color: #2e7d32;      /* Green 700 */
+            --secondary-color: #1b5e20;    /* Green 900 */
+            --accent-color: #81c784;       /* Light green */
             --sidebar-width: 260px;
             --header-height: 70px;
             --dark-bg: #1a1d29;
@@ -135,15 +137,16 @@
         }
 
         .sidebar-menu a:hover {
-            background: rgba(241, 98, 38, 0.1);
+            background: rgba(46, 125, 50, 0.08);
             color: var(--primary-color);
         }
 
         .sidebar-menu a.active {
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border-radius: 0 25px 25px 0;
-            margin-right: 20px;
+            color: #fff;
+            border-radius: 10px;
+            margin: 0 12px;
+            box-shadow: 0 6px 16px rgba(27, 94, 32, 0.25);
         }
 
         .sidebar-menu a i {

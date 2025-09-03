@@ -1,62 +1,61 @@
 @extends('share.Blank.master_blank')
 
 @section('content')
-<div class="container d-flex justify-content-center align-items-center" style="min-height: 70vh;">
-    <div class="card shadow-sm p-4" style="max-width: 400px; width: 100%;">
-        <div class="text-center mb-4">
-            <i class="fas fa-user-graduate fa-3x text-primary"></i>
-            <h4 class="mt-2">Đăng nhập AgriMR</h4>
-            <p class="text-muted">Hệ thống quản lý carbon farming</p>
-        </div>
-
-        <!-- Error Alert -->
-        <div id="errorAlert" class="alert alert-danger d-none" role="alert">
-            <span id="errorMessage"></span>
-        </div>
-
-        <!-- Loading Spinner -->
-        <div id="loadingSpinner" class="text-center mb-3 d-none">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+<div class="eco-background">
+    <div class="container d-flex justify-content-center align-items-center" style="min-height: 100vh;">
+        <div class="login-card">
+            <!-- Header -->
+            <div class="text-center mb-4">
+                <div class="eco-icon mb-3">
+                    <i class="fas fa-seedling"></i>
+                </div>
+                <h2 class="eco-title">AgriMRV</h2>
+                <p class="eco-subtitle">Carbon Farming Management</p>
             </div>
-        </div>
 
-        <!-- Login Form -->
-        <form id="loginForm" action="{{ route('login.post') }}" method="POST">
-            @csrf
-            <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" class="form-control" id="email" name="email" placeholder="Nhập email" required autocomplete="email">
+            <!-- Error Alerts -->
+            <div id="errorAlert" class="alert alert-danger d-none" role="alert">
+                <span id="errorMessage"></span>
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Mật khẩu</label>
-                <input type="password" class="form-control" id="password" name="password" placeholder="Nhập mật khẩu" required autocomplete="current-password">
+
+            @if(session('error'))
+            <div class="alert alert-danger" role="alert">
+                {{ session('error') }}
             </div>
-            <button type="submit" class="btn btn-primary w-100" id="loginBtn">
-                <span id="btnText">Đăng nhập</span>
-            </button>
-        </form>
+            @endif
 
-        <div class="mt-3 text-center">
-            <a href="#" class="text-decoration-none">Quên mật khẩu?</a>
-        </div>
+            <!-- Login Form -->
+            <form id="loginForm" action="{{ route('login.post') }}" method="POST">
+                @csrf
+                <div class="form-group">
+                    <input type="email" class="eco-input" id="email" name="email"
+                           placeholder="Email Address" required autocomplete="email">
+                </div>
 
-        <!-- Demo Accounts Info -->
-        <div class="mt-4 p-3 bg-light rounded">
-            <small class="text-muted">
-                <strong>Demo Accounts (đã có sẵn trong DB):</strong><br>
-                • Farmer: farmer1@example.com / 12345678<br>
-                • Cooperative: coop1@example.com / 12345678<br>
-                • Verifier: verifier1@example.com / 12345678<br>
-                • Bank: bank@example.com / 12345678<br>
-                • Government: government@example.com / 12345678<br>
-                • Buyer: buyer1@example.com / 12345678
-            </small>
-            <div class="mt-2">
-                <small class="text-info">
-                    <i class="fas fa-info-circle"></i>
-                    Tất cả users đã được tạo sẵn với password: 12345678
-                </small>
+                <div class="form-group">
+                    <input type="password" class="eco-input" id="password" name="password"
+                           placeholder="Password" required autocomplete="current-password">
+                </div>
+
+                <button type="submit" class="eco-btn" id="loginBtn">
+                    <span id="btnText">Sign In</span>
+                </button>
+            </form>
+
+            <!-- Demo Info -->
+            <div class="demo-section">
+                <div class="demo-title">Demo Accounts</div>
+                <div class="demo-account">
+                    <span class="demo-label">Verifier:</span>
+                    <span class="demo-value">verifier1@example.com</span>
+                </div>
+                <div class="demo-account">
+                    <span class="demo-label">Bank:</span>
+                    <span class="demo-value">bank@example.com</span>
+                </div>
+                <div class="demo-password">
+                    <i class="fas fa-key"></i> Password: 12345678
+                </div>
             </div>
         </div>
     </div>
@@ -65,14 +64,225 @@
 
 @section('js')
 <style>
-    .card {
-        border-radius: 1rem;
+    /* Green Environmental Theme */
+    :root {
+        --eco-primary: #2d5016;
+        --eco-secondary: #4a7c59;
+        --eco-accent: #7cb342;
+        --eco-light: #a5d6a7;
+        --eco-bg: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+        --eco-shadow: rgba(45, 80, 22, 0.15);
     }
-    .form-label {
+
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* .eco-background {
+        background: var(--eco-bg);
+        min-height: 100vh;
+        position: relative;
+    } */
+
+    .eco-background::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image:
+            radial-gradient(circle at 20% 50%, rgba(139, 195, 74, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(76, 175, 80, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 80%, rgba(104, 159, 56, 0.1) 0%, transparent 50%);
+        pointer-events: none;
+    }
+
+    .login-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 40px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 20px 40px var(--eco-shadow);
+        border: 1px solid rgba(139, 195, 74, 0.2);
+    }
+
+    .eco-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, var(--eco-accent), var(--eco-secondary));
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        box-shadow: 0 8px 25px rgba(139, 195, 74, 0.3);
+    }
+
+    .eco-icon i {
+        font-size: 2rem;
+        color: white;
+    }
+
+    .eco-title {
+        color: var(--eco-primary);
+        font-weight: 700;
+        font-size: 2rem;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+
+    .eco-subtitle {
+        color: var(--eco-secondary);
+        font-size: 0.95rem;
+        margin: 8px 0 0 0;
         font-weight: 500;
     }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .eco-input {
+        width: 100%;
+        padding: 16px 20px;
+        border: 2px solid #e8f5e8;
+        border-radius: 12px;
+        font-size: 1rem;
+        background: rgba(255, 255, 255, 0.8);
+        transition: all 0.3s ease;
+        outline: none;
+    }
+
+    .eco-input:focus {
+        border-color: var(--eco-accent);
+        background: white;
+        box-shadow: 0 0 0 4px rgba(139, 195, 74, 0.1);
+    }
+
+    .eco-input::placeholder {
+        color: #81c784;
+        font-weight: 500;
+    }
+
+    .eco-btn {
+        width: 100%;
+        padding: 16px;
+        background: linear-gradient(135deg, var(--eco-accent), var(--eco-secondary));
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 30px;
+    }
+
+    .eco-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(139, 195, 74, 0.4);
+    }
+
+    .eco-btn:active {
+        transform: translateY(0);
+    }
+
+    .eco-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .demo-section {
+        background: rgba(232, 245, 232, 0.6);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid rgba(139, 195, 74, 0.2);
+    }
+
+    .demo-title {
+        color: var(--eco-primary);
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+
+    .demo-account {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+    }
+
+    .demo-label {
+        color: var(--eco-secondary);
+        font-weight: 600;
+    }
+
+    .demo-value {
+        color: var(--eco-primary);
+        font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .demo-password {
+        text-align: center;
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid rgba(139, 195, 74, 0.3);
+        color: var(--eco-secondary);
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .demo-password i {
+        color: var(--eco-accent);
+        margin-right: 5px;
+    }
+
     .alert {
-        border-radius: 0.5rem;
+        border-radius: 12px;
+        border: none;
+        margin-bottom: 20px;
+        padding: 12px 16px;
+        font-size: 0.9rem;
+    }
+
+    .alert-danger {
+        background: rgba(244, 67, 54, 0.1);
+        color: #c62828;
+        border-left: 4px solid #f44336;
+    }
+
+    /* Loading Animation */
+    .spinner-border {
+        width: 20px;
+        height: 20px;
+        border-width: 2px;
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+        .login-card {
+            margin: 20px;
+            padding: 30px 25px;
+        }
+
+        .eco-title {
+            font-size: 1.75rem;
+        }
+
+        .eco-icon {
+            width: 70px;
+            height: 70px;
+        }
+
+        .eco-icon i {
+            font-size: 1.75rem;
+        }
     }
 </style>
 
@@ -81,143 +291,54 @@ document.addEventListener('DOMContentLoaded', function() {
     const loginForm = document.getElementById('loginForm');
     const errorAlert = document.getElementById('errorAlert');
     const errorMessage = document.getElementById('errorMessage');
-    const loadingSpinner = document.getElementById('loadingSpinner');
     const loginBtn = document.getElementById('loginBtn');
     const btnText = document.getElementById('btnText');
 
-    // Kiểm tra nếu đã đăng nhập thì redirect
-    checkExistingLogin();
-
-    // Handle form submission
-    loginForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
+    loginForm.addEventListener('submit', function(e) {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
 
         if (!email || !password) {
-            showError('Vui lòng nhập đầy đủ thông tin');
+            e.preventDefault();
+            showError('Please enter both email and password');
             return;
         }
 
-        await login(email, password);
+        setLoading(true);
+        hideError();
     });
-
-    async function login(email, password) {
-        try {
-            // Show loading state
-            setLoading(true);
-            hideError();
-
-                           const response = await axios.post('/api/auth/web-login', {
-                   email: email,
-                   password: password
-               }, {
-                   headers: {
-                       'Content-Type': 'application/json',
-                       'Accept': 'application/json'
-                   }
-               });
-
-            console.log('Login response:', response.data);
-
-            // Store token and user info
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-
-            // Show success message and redirect
-            showSuccessAndRedirect(response.data.user.user_type);
-        } catch (error) {
-            console.error('Login error:', error);
-            let errorMsg = 'Đăng nhập thất bại. Vui lòng thử lại.';
-
-            // Hiển thị validation errors nếu có
-            if (error.response?.status === 422) {
-                const errors = error.response.data.errors;
-                if (errors) {
-                    errorMsg = Object.values(errors).flat().join(', ');
-                } else if (error.response.data.message) {
-                    errorMsg = error.response.data.message;
-                }
-            }
-            showError(errorMsg);
-        } finally {
-            setLoading(false);
-        }
-    }
 
     function setLoading(loading) {
         if (loading) {
-            loadingSpinner.classList.remove('d-none');
             loginBtn.disabled = true;
-            btnText.textContent = 'Đang xử lý...';
+            btnText.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Signing In...';
         } else {
-            loadingSpinner.classList.add('d-none');
             loginBtn.disabled = false;
-            btnText.textContent = 'Đăng nhập';
+            btnText.innerHTML = 'Sign In';
         }
     }
 
     function showError(message) {
         errorMessage.textContent = message;
         errorAlert.classList.remove('d-none');
+        setTimeout(() => hideError(), 5000);
     }
 
     function hideError() {
         errorAlert.classList.add('d-none');
     }
 
-    function showSuccessAndRedirect(userType) {
-        const routes = {
-            'farmer': '/dashboard',
-            'cooperative': '/cooperative',
-            'verifier': '/verifier',
-            'bank': '/bank',
-            'government': '/government',
-            'buyer': '/buyer'
-        };
-
-        const route = routes[userType] || '/dashboard';
-        const userTypeName = getUserTypeName(userType);
-
-        // Show success message
-        Swal.fire({
-            icon: 'success',
-            title: 'Đăng nhập thành công!',
-            text: `Chào mừng ${userTypeName}`,
-            timer: 1500,
-            showConfirmButton: false
-        }).then(() => {
-            window.location.href = route;
+    // Add subtle animations to inputs
+    const inputs = document.querySelectorAll('.eco-input');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            this.style.transform = 'scale(1.02)';
         });
-    }
 
-    function getUserTypeName(userType) {
-        const names = {
-            'farmer': 'Nông dân',
-            'cooperative': 'Hợp tác xã',
-            'verifier': 'Đơn vị xác minh',
-            'bank': 'Ngân hàng',
-            'government': 'Chính phủ',
-            'buyer': 'Người mua carbon'
-        };
-        return names[userType] || 'Người dùng';
-    }
-
-    function checkExistingLogin() {
-        const token = localStorage.getItem('token');
-        const user = localStorage.getItem('user');
-
-        if (token && user) {
-            try {
-                const userData = JSON.parse(user);
-                showSuccessAndRedirect(userData.user_type);
-            } catch (e) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-            }
-        }
-    }
+        input.addEventListener('blur', function() {
+            this.style.transform = 'scale(1)';
+        });
+    });
 });
 </script>
 @endsection

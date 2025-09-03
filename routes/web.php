@@ -13,18 +13,22 @@ Route::get('/', function () {
 
 
 
-Route::get('/login', function () {
-    return view('page.Auth.Login.index');
-})->name('login');
+Route::get('/login', [AuthController::class, 'loginView'])->name('login');
 
 Route::post('login', [AuthController::class, 'actionLogin'])->name('login.post');
 
+Route::post('logout', function (Request $request) {
+    Auth::logout();
 
+    // Invalidate session and regenerate CSRF token
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
 
-
+    return redirect()->route('login')->with('success', 'Đăng xuất thành công');
+})->name('logout');
 
 // Role landing pages (với authentication check)
-Route::middleware('web')->group(function () {
+Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/cooperative', function () {
         return view('page.Cooper.index');
     })->name('cooperative');
@@ -33,32 +37,61 @@ Route::middleware('web')->group(function () {
         return view('page.Dashboard.index');
     })->name('dashboard');
 
-    // Verifier routes
-    Route::get('/verifier', function () {
-        return view('page.Verifier.index');
-    })->name('verifier.dashboard');
+    // Verifier routes - Sử dụng VerifierController với middleware tùy chỉnh
+    Route::prefix('verifier')->name('verifier.')->middleware('verifier')->group(function () {
+        Route::get('/', [App\Http\Controllers\VerifierController::class, 'dashboard'])->name('dashboard');
+        Route::get('/schedule', [App\Http\Controllers\VerifierController::class, 'schedule'])->name('schedule');
+        Route::get('/request', [App\Http\Controllers\VerifierController::class, 'requests'])->name('request');
+        // View detail page
+        Route::get('/request/{id}', [App\Http\Controllers\VerifierController::class, 'requestDetail'])->name('request.show');
+        Route::get('/reports', [App\Http\Controllers\VerifierController::class, 'reports'])->name('reports');
+        Route::get('/analytics', [App\Http\Controllers\VerifierController::class, 'analytics'])->name('analytics');
 
-    Route::get('/verifier/schedule', function () {
-        return view('page.Verifier.Schedule.index');
-    })->name('verifier.schedule');
+        // Web API routes for verifier (session authentication)
+        Route::get('/api/queue', [App\Http\Controllers\Api\VerifierController::class, 'queue'])->name('api.queue');
+        Route::get('/api/my-verifications', [App\Http\Controllers\Api\VerifierController::class, 'myVerifications'])->name('api.my-verifications');
+        Route::get('/api/analytics', [App\Http\Controllers\Api\VerifierController::class, 'analytics'])->name('api.analytics');
+        Route::get('/api/ai-insights', [App\Http\Controllers\Api\VerifierController::class, 'aiInsights'])->name('api.ai-insights');
+        Route::get('/api/request/detail/{id}', [App\Http\Controllers\Api\VerifierController::class, 'requestDetail'])->name('api.request.detail');
 
-    Route::get('/verifier/request', function () {
-        return view('page.Verifier.Request.index');
-    })->name('verifier.request');
-
-    Route::get('/verifier/reports', function () {
-        return view('page.Verifier.Reports.index');
-    })->name('verifier.reports');
-
-    Route::get('/verifier/analytics', function () {
-        return view('page.Verifier.Analytics.index');
-    })->name('verifier.analytics');
-
+        // Verifier action routes
+        Route::post('/api/declarations/{id}/submit', [App\Http\Controllers\Api\VerifierController::class, 'submitDeclaration'])->name('api.declarations.submit');
+        Route::post('/api/declarations/{id}/schedule', [App\Http\Controllers\Api\VerifierController::class, 'scheduleFieldVisit'])->name('api.declarations.schedule');
+        Route::post('/api/declarations/{id}/request-revision', [App\Http\Controllers\Api\VerifierController::class, 'requestRevision'])->name('api.declarations.request-revision');
+        Route::post('/api/declarations/{id}/approve', [App\Http\Controllers\Api\VerifierController::class, 'approveDeclaration'])->name('api.declarations.approve');
+        Route::post('/api/declarations/{id}/reject', [App\Http\Controllers\Api\VerifierController::class, 'rejectDeclaration'])->name('api.declarations.reject');
+    });
 
 
 
+
+    // Banker routes - Sử dụng BankerController với middleware tùy chỉnh
+    Route::prefix('banker')->name('banker.')->group(function () {
+        Route::get('/', [App\Http\Controllers\BankerController::class, 'dashboard'])->name('dashboard');
+        Route::get('/loan-applications', [App\Http\Controllers\BankerController::class, 'loanApplications'])->name('loan-applications');
+        Route::get('/portfolio', [App\Http\Controllers\BankerController::class, 'portfolio'])->name('portfolio');
+        Route::get('/risk-assessment', [App\Http\Controllers\BankerController::class, 'riskAssessment'])->name('risk-assessment');
+        Route::get('/reports', [App\Http\Controllers\BankerController::class, 'reports'])->name('reports');
+        Route::get('/analytics', [App\Http\Controllers\BankerController::class, 'analytics'])->name('analytics');
+        Route::get('/settings', [App\Http\Controllers\BankerController::class, 'settings'])->name('settings');
+        Route::get('/profile', [App\Http\Controllers\BankerController::class, 'profile'])->name('profile');
+
+        // Web API routes for banker (session authentication)
+        Route::get('/api/loan-applications', [App\Http\Controllers\Api\BankController::class, 'loanApplications'])->name('api.loan-applications');
+        Route::get('/api/portfolio', [App\Http\Controllers\Api\BankController::class, 'portfolio'])->name('api.portfolio');
+        Route::get('/api/risk-assessment', [App\Http\Controllers\Api\BankController::class, 'riskAssessment'])->name('api.risk-assessment');
+        Route::get('/api/reports', [App\Http\Controllers\Api\BankController::class, 'reports'])->name('api.reports');
+        Route::get('/api/analytics', [App\Http\Controllers\Api\BankController::class, 'analytics'])->name('api.analytics');
+
+        // Banker action routes
+        Route::post('/api/loans/{record}/approve', [App\Http\Controllers\Api\BankController::class, 'approveLoan'])->name('api.loans.approve');
+        Route::post('/api/loans/{record}/reject', [App\Http\Controllers\Api\BankController::class, 'rejectLoan'])->name('api.loans.reject');
+        Route::post('/api/loans/{record}/request-info', [App\Http\Controllers\Api\BankController::class, 'requestInfo'])->name('api.loans.request-info');
+    });
+
+    // Legacy bank route (redirect to new banker system)
     Route::get('/bank', function () {
-        return view('page.Banker.index');
+        return redirect()->route('banker.dashboard');
     })->name('bank');
     Route::get('/government', function () {
         return view('page.Admin.index');
@@ -67,8 +100,5 @@ Route::middleware('web')->group(function () {
         return view('page.Buyer.index');
     })->name('buyer');
 
-    // Logout route
-    Route::get('/logout', function () {
-        return redirect('/login');
-    })->name('logout');
+    // Remove duplicate GET /logout; use POST /logout above.
 });

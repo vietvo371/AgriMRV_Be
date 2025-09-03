@@ -74,7 +74,8 @@ class DatabaseSeeder extends Seeder
         $this->command->info('🔍 Verification Records:');
         foreach (['pending', 'approved', 'rejected', 'requires_revision'] as $status) {
             $count = $verificationStats[$status] ?? 0;
-            $this->command->info("  • {$status}: {$count}");
+            $percentage = $verificationStats ? round(($count / array_sum($verificationStats)) * 100, 1) : 0;
+            $this->command->info("  • {$status}: {$count} ({$percentage}%)");
         }
 
         // Carbon Credits status
@@ -86,7 +87,8 @@ class DatabaseSeeder extends Seeder
         $this->command->info('💎 Carbon Credits:');
         foreach (['issued', 'sold', 'retired', 'cancelled'] as $status) {
             $count = $creditStats[$status] ?? 0;
-            $this->command->info("  • {$status}: {$count}");
+            $percentage = $creditStats ? round(($count / array_sum($creditStats)) * 100, 1) : 0;
+            $this->command->info("  • {$status}: {$count} ({$percentage}%)");
         }
 
         $this->command->info(str_repeat('=', 60));
@@ -431,8 +433,8 @@ class DatabaseSeeder extends Seeder
     {
         $verifiers = User::where('user_type', 'verifier')->get();
 
-        // === LOGIC XỬ LÝ VERIFICATION THEO STATUS CỦA DECLARATIONS ===
-        // Chỉ tạo verification records cho declarations có status 'submitted'
+        // === LOGIC XỬ LÝ VERIFICATION THEO WORKFLOW THỰC TẾ ===
+        // Chỉ tạo verification records cho 70% submitted declarations (thực tế không phải tất cả đều được verify)
         $submittedDeclarations = MrvDeclaration::where('status', 'submitted')->get();
 
         if ($submittedDeclarations->isEmpty()) {
@@ -440,36 +442,42 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        foreach ($submittedDeclarations as $idx => $declaration) {
+        // Chỉ verify 70% submitted declarations (thực tế)
+        $declarationsToVerify = $submittedDeclarations->take(ceil($submittedDeclarations->count() * 0.7));
+
+        foreach ($declarationsToVerify as $idx => $declaration) {
             $verifier = $verifiers[$idx % count($verifiers)];
             $verificationType = ['remote', 'field', 'hybrid'][$idx % 3];
 
-            // === XÁC ĐỊNH VERIFICATION STATUS THEO LOGIC NGHIỆP VỤ ===
-            // 60% approved, 25% pending, 10% requires_revision, 5% rejected
+            // === XÁC ĐỊNH VERIFICATION STATUS THEO LOGIC NGHIỆP VỤ THỰC TẾ ===
+            // 70% approved, 15% pending, 10% requires_revision, 5% rejected
             $verificationStatus = $this->determineVerificationStatus($idx);
 
-            // Đảm bảo verification scores đủ cao để có MRV reliability có ý nghĩa
-            // Verification score: 75-95 điểm (ảnh hưởng trực tiếp đến độ tin cậy MRV)
-            $verificationScore = 75 + ($idx % 20);
+            // Tính verification score dựa trên carbon performance và evidence quality
+            $baseScore = 70;
+            $carbonBonus = min(20, $declaration->carbon_performance_score * 0.2); // Bonus từ carbon performance
+            $evidenceBonus = 5 + ($idx % 10); // Bonus từ evidence quality
+            $verificationScore = min(100, $baseScore + $carbonBonus + $evidenceBonus);
 
             VerificationRecord::create([
                 'mrv_declaration_id' => $declaration->id,
                 'verifier_id' => $verifier->id,
                 'verification_type' => $verificationType,
-                'verification_date' => date('Y-m-d', strtotime('+' . ($idx * 2) . ' days', strtotime($declaration->created_at))),
+                'verification_date' => date('Y-m-d', strtotime('+' . ($idx * 3) . ' days', strtotime($declaration->created_at))),
                 'verification_status' => $verificationStatus,
-                'verification_score' => $verificationScore,
-                'field_visit_notes' => 'Verification notes for declaration ' . $declaration->id . ' - ' . $verificationType . ' verification',
+                'verification_score' => round($verificationScore, 1),
+                'field_visit_notes' => $this->generateVerificationNotes($declaration, $verificationType, $verificationStatus),
                 'verification_evidence' => [
                     'photos' => ['verification_' . $declaration->id . '_1.jpg', 'verification_' . $declaration->id . '_2.jpg'],
                     'documents' => ['report_' . $declaration->id . '.pdf'],
-                    'gps_coordinates' => [10.0 + $idx * 0.001, 105.0 + $idx * 0.001]
+                    'gps_coordinates' => [10.0 + $idx * 0.001, 105.0 + $idx * 0.001],
+                    'evidence_quality_score' => 75 + ($idx % 20)
                 ],
-                'verifier_comments' => 'Verification completed for declaration ' . $declaration->id . '. Status: ' . $verificationStatus,
+                'verifier_comments' => $this->generateVerifierComments($declaration, $verificationStatus, $verificationScore),
             ]);
         }
 
-        $this->command->info('✅ Đã tạo ' . $submittedDeclarations->count() . ' verification records cho submitted declarations');
+        $this->command->info('✅ Đã tạo ' . $declarationsToVerify->count() . ' verification records cho ' . ceil($submittedDeclarations->count() * 0.7) . '/' . $submittedDeclarations->count() . ' submitted declarations');
 
         // === CẬP NHẬT STATUS CỦA MRV DECLARATIONS SAU KHI VERIFY ===
         $this->updateDeclarationStatusesAfterVerification();
@@ -483,6 +491,8 @@ class DatabaseSeeder extends Seeder
     {
         $verificationRecords = VerificationRecord::all();
         $updatedCount = 0;
+        $verifiedCount = 0;
+        $rejectedCount = 0;
 
         foreach ($verificationRecords as $verification) {
             $declaration = MrvDeclaration::find($verification->mrv_declaration_id);
@@ -490,9 +500,11 @@ class DatabaseSeeder extends Seeder
             if ($declaration && $declaration->status === 'submitted') {
                 if ($verification->verification_status === 'approved') {
                     $declaration->update(['status' => 'verified']);
+                    $verifiedCount++;
                     $updatedCount++;
                 } elseif ($verification->verification_status === 'rejected') {
                     $declaration->update(['status' => 'rejected']);
+                    $rejectedCount++;
                     $updatedCount++;
                 }
                 // Nếu verification_status là 'pending' hoặc 'requires_revision', giữ nguyên status 'submitted'
@@ -500,7 +512,10 @@ class DatabaseSeeder extends Seeder
         }
 
         if ($updatedCount > 0) {
-            $this->command->info('✅ Đã cập nhật status cho ' . $updatedCount . ' MRV declarations sau verification');
+            $this->command->info("✅ Đã cập nhật status cho {$updatedCount} MRV declarations sau verification:");
+            $this->command->info("   • Verified: {$verifiedCount}");
+            $this->command->info("   • Rejected: {$rejectedCount}");
+            $this->command->info("   • Vẫn pending/requires_revision: " . ($verificationRecords->count() - $updatedCount));
         }
     }
 
@@ -511,10 +526,55 @@ class DatabaseSeeder extends Seeder
     {
         $rand = rand(1, 100);
 
-        if ($rand <= 60) return 'approved';        // 60% - Đa số được approve
-        if ($rand <= 85) return 'pending';         // 25% - Đang chờ xử lý
+        // Thực tế: 70% approved, 15% pending, 10% requires_revision, 5% rejected
+        if ($rand <= 70) return 'approved';        // 70% - Đa số được approve
+        if ($rand <= 85) return 'pending';         // 15% - Đang chờ xử lý
         if ($rand <= 95) return 'requires_revision'; // 10% - Cần sửa đổi
         return 'rejected';                          // 5% - Bị từ chối
+    }
+
+    /**
+     * Tạo verification notes dựa trên loại verification và status
+     */
+    private function generateVerificationNotes($declaration, string $verificationType, string $status): string
+    {
+        $notes = [
+            'remote' => [
+                'approved' => 'Remote verification completed successfully. Satellite imagery and documentation reviewed. Carbon practices verified.',
+                'pending' => 'Remote verification in progress. Additional documentation requested from farmer.',
+                'requires_revision' => 'Remote verification requires revision. Inconsistent data found in evidence files.',
+                'rejected' => 'Remote verification failed. Insufficient evidence or non-compliance with standards.'
+            ],
+            'field' => [
+                'approved' => 'Field verification completed successfully. On-site inspection confirmed carbon farming practices.',
+                'pending' => 'Field verification scheduled. Awaiting site visit completion.',
+                'requires_revision' => 'Field verification requires revision. Minor discrepancies found during site visit.',
+                'rejected' => 'Field verification failed. Major non-compliance issues identified during site visit.'
+            ],
+            'hybrid' => [
+                'approved' => 'Hybrid verification completed successfully. Remote and field data consistent.',
+                'pending' => 'Hybrid verification in progress. Combining remote and field data analysis.',
+                'requires_revision' => 'Hybrid verification requires revision. Data inconsistencies between remote and field sources.',
+                'rejected' => 'Hybrid verification failed. Significant discrepancies between remote and field verification.'
+            ]
+        ];
+
+        return $notes[$verificationType][$status] ?? 'Verification completed for declaration ' . $declaration->id;
+    }
+
+    /**
+     * Tạo verifier comments dựa trên status và score
+     */
+    private function generateVerifierComments($declaration, string $status, float $score): string
+    {
+        $comments = [
+            'approved' => "Declaration approved with score {$score}. Carbon practices meet standards. Estimated credits: {$declaration->estimated_carbon_credits} tCO₂e.",
+            'pending' => "Verification pending. Score: {$score}. Additional review required before final decision.",
+            'requires_revision' => "Declaration requires revision. Score: {$score}. Please address identified issues and resubmit.",
+            'rejected' => "Declaration rejected. Score: {$score}. Does not meet verification standards."
+        ];
+
+        return $comments[$status] ?? 'Verification completed for declaration ' . $declaration->id;
     }
 
     private function createCarbonCredits()
@@ -528,33 +588,63 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
+        $issuedCount = 0;
+        $soldCount = 0;
+        $retiredCount = 0;
+        $cancelledCount = 0;
+
         foreach ($approvedVerifications as $idx => $verification) {
-            $creditType = ['rice_cultivation', 'agroforestry', 'mixed_farming'][$idx % 3];
+            $declaration = MrvDeclaration::find($verification->mrv_declaration_id);
+
+            if (!$declaration) {
+                continue; // Skip nếu không tìm thấy declaration
+            }
+
+            // Xác định credit type dựa trên farm profile
+            $farmProfile = $declaration->farmProfile;
+            $creditType = $this->determineCreditType($farmProfile);
 
             // === XÁC ĐỊNH CARBON CREDIT STATUS THEO LOGIC NGHIỆP VỤ ===
-            // 70% issued, 20% sold, 8% retired, 2% cancelled
+            // 75% issued, 20% sold, 4% retired, 1% cancelled
             $creditStatus = $this->determineCarbonCreditStatus($idx);
 
-            // Lấy thông tin từ MRV declaration để tính credit amount thực tế
-            $declaration = MrvDeclaration::find($verification->mrv_declaration_id);
-            $estimatedAmount = $declaration ? $declaration->estimated_carbon_credits : (15 + ($idx * 5));
+            // Tính credit amount dựa trên verification score và estimated credits
+            $baseAmount = $declaration->estimated_carbon_credits;
+            $verificationMultiplier = $verification->verification_score / 100; // 0.7-1.0
+            $finalAmount = round($baseAmount * $verificationMultiplier, 2);
 
-            CarbonCredit::create([
+            // Tính price dựa trên credit type và market conditions
+            $basePrice = $this->getBasePriceForCreditType($creditType);
+            $pricePerCredit = $basePrice + ($idx % 5); // Variation in price
+
+            $carbonCredit = CarbonCredit::create([
                 'mrv_declaration_id' => $verification->mrv_declaration_id,
                 'verification_record_id' => $verification->id,
-                'credit_amount' => round($estimatedAmount, 2),
+                'credit_amount' => $finalAmount,
                 'credit_type' => $creditType,
                 'vintage_year' => 2024,
-                'certification_standard' => ['Gold Standard', 'VCS', 'CAR'][$idx % 3],
+                'certification_standard' => $this->getCertificationStandard($creditType),
                 'serial_number' => 'CC-2024-' . str_pad((string)($idx + 1), 5, '0', STR_PAD_LEFT),
                 'status' => $creditStatus,
-                'price_per_credit' => 18 + ($idx % 12),
-                'issued_date' => date('Y-m-d', strtotime('+' . ($idx * 3) . ' days', strtotime($verification->verification_date))),
+                'price_per_credit' => $pricePerCredit,
+                'issued_date' => date('Y-m-d', strtotime('+' . ($idx * 2) . ' days', strtotime($verification->verification_date))),
                 'expiry_date' => date('Y-m-d', strtotime('+10 years', strtotime('2024-01-01'))),
             ]);
+
+            // Count by status
+            switch ($creditStatus) {
+                case 'issued': $issuedCount++; break;
+                case 'sold': $soldCount++; break;
+                case 'retired': $retiredCount++; break;
+                case 'cancelled': $cancelledCount++; break;
+            }
         }
 
-        $this->command->info('✅ Đã tạo ' . $approvedVerifications->count() . ' carbon credits cho approved verifications');
+        $this->command->info("✅ Đã tạo {$approvedVerifications->count()} carbon credits cho approved verifications:");
+        $this->command->info("   • Issued: {$issuedCount}");
+        $this->command->info("   • Sold: {$soldCount}");
+        $this->command->info("   • Retired: {$retiredCount}");
+        $this->command->info("   • Cancelled: {$cancelledCount}");
     }
 
     /**
@@ -564,10 +654,56 @@ class DatabaseSeeder extends Seeder
     {
         $rand = rand(1, 100);
 
-        if ($rand <= 70) return 'issued';      // 70% - Đã phát hành
-        if ($rand <= 90) return 'sold';        // 20% - Đã bán
-        if ($rand <= 98) return 'retired';     // 8% - Đã rút khỏi thị trường
-        return 'cancelled';                     // 2% - Bị hủy bỏ
+        // Thực tế: 75% issued, 20% sold, 4% retired, 1% cancelled
+        if ($rand <= 75) return 'issued';      // 75% - Đã phát hành
+        if ($rand <= 95) return 'sold';        // 20% - Đã bán
+        if ($rand <= 99) return 'retired';     // 4% - Đã rút khỏi thị trường
+        return 'cancelled';                     // 1% - Bị hủy bỏ
+    }
+
+    /**
+     * Xác định credit type dựa trên farm profile
+     */
+    private function determineCreditType($farmProfile): string
+    {
+        $riceRatio = $farmProfile->rice_area_hectares / $farmProfile->total_area_hectares;
+        $agroRatio = $farmProfile->agroforestry_area_hectares / $farmProfile->total_area_hectares;
+
+        if ($riceRatio > 0.7) {
+            return 'rice_cultivation';
+        } elseif ($agroRatio > 0.5) {
+            return 'agroforestry';
+        } else {
+            return 'mixed_farming';
+        }
+    }
+
+    /**
+     * Lấy base price cho credit type
+     */
+    private function getBasePriceForCreditType(string $creditType): int
+    {
+        $prices = [
+            'rice_cultivation' => 15,  // Rice credits thường rẻ hơn
+            'agroforestry' => 25,      // Agroforestry credits có giá cao hơn
+            'mixed_farming' => 20      // Mixed farming ở giữa
+        ];
+
+        return $prices[$creditType] ?? 18;
+    }
+
+    /**
+     * Lấy certification standard cho credit type
+     */
+    private function getCertificationStandard(string $creditType): string
+    {
+        $standards = [
+            'rice_cultivation' => 'Gold Standard',  // Rice thường dùng Gold Standard
+            'agroforestry' => 'VCS',               // Agroforestry thường dùng VCS
+            'mixed_farming' => 'CAR'               // Mixed farming thường dùng CAR
+        ];
+
+        return $standards[$creditType] ?? 'Gold Standard';
     }
 
     private function createCarbonTransactions()

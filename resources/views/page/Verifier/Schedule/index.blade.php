@@ -156,14 +156,10 @@ let currentWeek = new Date();
 let scheduledVisits = [];
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up axios with authentication token
-    const token = localStorage.getItem('token');
-    if (token) {
-        axios.defaults.headers.common['Authorization'] = 'Bearer ' + token;
-    } else {
-        // Redirect to login if no token
-        window.location.href = '/login';
-        return;
+    // Set up axios with CSRF token for session authentication
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    if (csrfToken) {
+        axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
     }
 
     loadScheduledVisits();
@@ -176,7 +172,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadScheduledVisits() {
     try {
-        const response = await axios.get('/api/verifier/my-verifications');
+        const response = await axios.get('/verifier/api/my-verifications');
         scheduledVisits = response.data.data.verifications || [];
 
         updateDashboard();

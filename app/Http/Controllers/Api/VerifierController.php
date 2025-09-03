@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\MrvDeclaration;
 use App\Models\VerificationRecord;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Carbon;
 use App\Models\User;
 use App\Models\FarmProfile;
 use App\Models\EvidenceFile;
@@ -19,16 +21,32 @@ class VerifierController extends Controller
     public function queue(Request $request)
     {
         // Danh sách MRV declarations đang chờ xác minh
-        $pending = MrvDeclaration::with(['user:id,full_name,email,address', 'farmProfile:id,total_area_hectares,rice_area_hectares,agroforestry_area_hectares,primary_crop_type'])
+        $pending = MrvDeclaration::with(['farmProfile.user:id,full_name,email,address', 'farmProfile:id,user_id,total_area_hectares,rice_area_hectares,agroforestry_area_hectares,primary_crop_type'])
             ->where('status', 'submitted')
             ->orderBy('created_at', 'asc')
             ->take(50)
             ->get();
 
-        // Add evidence files count
+                // Add evidence files count and format data
         $pending->each(function ($declaration) {
             $declaration->evidence_files_count = EvidenceFile::where('mrv_declaration_id', $declaration->id)->count();
             $declaration->estimated_carbon_credits = $declaration->estimated_carbon_credits ?? 0;
+
+            // Add user data for easier access
+            $declaration->user = $declaration->farmProfile->user ?? null;
+
+            // Enrich farm_profile with location for frontend convenience
+            if ($declaration->farmProfile) {
+                $declaration->farmProfile->location = optional($declaration->farmProfile->user)->address;
+            }
+
+            // Derive priority from seeder business signals
+            $declaration->priority = $this->derivePriority(
+                (float) ($declaration->carbon_performance_score ?? 0),
+                (float) ($declaration->mrv_reliability_score ?? 0),
+                (int) ($declaration->evidence_files_count ?? 0),
+                (float) ($declaration->estimated_carbon_credits ?? 0)
+            );
         });
 
         return $this->success(['queue' => $pending]);
@@ -44,7 +62,7 @@ class VerifierController extends Controller
         $verificationType = $request->get('verification_type');
         $verificationStatus = $request->get('verification_status');
 
-        $query = VerificationRecord::with(['mrvDeclaration.user:id,full_name,email,address', 'mrvDeclaration.farmProfile:id,primary_crop_type'])
+        $query = VerificationRecord::with(['mrvDeclaration.farmProfile.user:id,full_name,email,address', 'mrvDeclaration.farmProfile:id,user_id,primary_crop_type'])
             ->where('verifier_id', $verifier->id);
 
         // Apply filters
@@ -64,12 +82,32 @@ class VerifierController extends Controller
 
         // Add additional data
         $records->each(function ($record) {
-            $record->farmer_name = $record->mrvDeclaration->user->full_name ?? 'Unknown';
-            $record->location = $record->mrvDeclaration->user->address ?? 'N/A';
+            $record->farmer_name = $record->mrvDeclaration->farmProfile->user->full_name ?? 'Unknown';
+            $record->location = $record->mrvDeclaration->farmProfile->user->address ?? 'N/A';
             $record->carbon_claims = $record->mrvDeclaration->estimated_carbon_credits ?? 0;
         });
 
         return $this->success(['verifications' => $records]);
+    }
+
+    /**
+     * Ưu tiên hóa yêu cầu dựa trên logic seeding: hiệu suất carbon (CP), độ tin cậy MRV (MR),
+     * số lượng evidence và ước tính tín chỉ carbon.
+     */
+    private function derivePriority(float $carbonPerformanceScore, float $mrvReliabilityScore, int $evidenceCount, float $estimatedCredits): string
+    {
+        // Chuẩn hóa điểm theo trọng số (gần với logic tổng hợp trong seeder: CP và MR ~ 50/50)
+        $scoreComponent = ($carbonPerformanceScore * 0.5) + ($mrvReliabilityScore * 0.5); // 0..100
+
+        // Tăng ưu tiên nếu có nhiều bằng chứng và tín chỉ cao
+        $evidenceBoost = min(15, $evidenceCount * 2.5); // tối đa ~15 điểm
+        $creditsBoost = min(20, $estimatedCredits * 0.8); // tối đa ~20 điểm
+
+        $composite = $scoreComponent + $evidenceBoost + $creditsBoost; // thang ~0..135
+
+        if ($composite >= 95) return 'high';
+        if ($composite >= 70) return 'medium';
+        return 'low';
     }
 
     public function analytics(Request $request)
@@ -88,7 +126,7 @@ class VerifierController extends Controller
         $startDate = now()->subDays($timePeriod);
 
         // Get verifications for the period
-        $verifications = VerificationRecord::with(['mrvDeclaration.user', 'mrvDeclaration.farmProfile'])
+        $verifications = VerificationRecord::with(['mrvDeclaration.farmProfile.user', 'mrvDeclaration.farmProfile'])
             ->where('verifier_id', $verifier->id)
             ->whereBetween('verification_date', [$startDate, $endDate])
             ->get();
@@ -96,7 +134,7 @@ class VerifierController extends Controller
         // Apply additional filters
         if ($region) {
             $verifications = $verifications->filter(function ($v) use ($region) {
-                return str_contains(strtolower($v->mrvDeclaration->user->address ?? ''), strtolower($region));
+                return str_contains(strtolower($v->mrvDeclaration->farmProfile->user->address ?? ''), strtolower($region));
             });
         }
 
@@ -150,7 +188,9 @@ class VerifierController extends Controller
         $forecast = [
             'labels' => $trendLabels,
             'historical' => $trendValues,
-            'predicted' => array_map(function($val) { return $val + rand(-2, 2); }, $trendValues)
+            'predicted' => array_map(function ($val) {
+                return $val + rand(-2, 2);
+            }, $trendValues)
         ];
 
         // Benchmarks
@@ -230,7 +270,145 @@ class VerifierController extends Controller
 
         return $this->success(['insights' => $insights]);
     }
+
+    /**
+     * Aggregate request detail for web view (session auth):
+     * - declaration
+     * - farmer (user)
+     * - farmProfile
+     * - evidenceFiles
+     * - aiResults
+     */
+    public function requestDetail(Request $request, int $id)
+    {
+        $declaration = MrvDeclaration::with(['farmProfile.user','farmProfile'])
+            ->findOrFail($id);
+
+        $farmer = optional($declaration->farmProfile)->user;
+        $farmProfile = $declaration->farmProfile;
+        $evidenceFiles = EvidenceFile::where('mrv_declaration_id', $id)
+            ->orderBy('capture_timestamp','desc')->get();
+        $aiResults = AiAnalysisResult::whereHas('evidenceFile', function ($q) use ($id) {
+                $q->where('mrv_declaration_id', $id);
+            })
+            ->orderBy('processed_at','desc')->get();
+
+        return $this->success([
+            'declaration' => $declaration,
+            'farmer' => $farmer,
+            'farmProfile' => $farmProfile,
+            'evidenceFiles' => $evidenceFiles,
+            'aiResults' => $aiResults,
+        ]);
+    }
+
+    /**
+     * VERIFIER ACTIONS - drive MRV workflow transitions
+     */
+    public function submitDeclaration(Request $request, int $id)
+    {
+        $declaration = MrvDeclaration::findOrFail($id);
+        if ($declaration->status !== 'draft') {
+            return $this->error('Only draft declarations can be submitted', 422);
+        }
+        $declaration->update(['status' => 'submitted']);
+        return $this->success($declaration, 'Declaration submitted');
+    }
+
+    public function scheduleFieldVisit(Request $request, int $id)
+    {
+        $request->validate([
+            'verification_date' => 'required|date',
+            'notes' => 'nullable|string',
+        ]);
+
+        $declaration = MrvDeclaration::findOrFail($id);
+        if (!in_array($declaration->status, ['submitted'])) {
+            return $this->error('Only submitted declarations can be scheduled for visit', 422);
+        }
+
+        $record = VerificationRecord::create([
+            'mrv_declaration_id' => $declaration->id,
+            'verifier_id' => Auth::id(),
+            'verification_type' => $request->get('verification_type', 'field'),
+            'verification_date' => $request->get('verification_date'),
+            'verification_status' => 'pending',
+            'field_visit_notes' => $request->get('notes'),
+        ]);
+
+        return $this->success($record, 'Field visit scheduled');
+    }
+
+    public function requestRevision(Request $request, int $id)
+    {
+        $request->validate(['comments' => 'required|string']);
+        $declaration = MrvDeclaration::findOrFail($id);
+        if ($declaration->status !== 'submitted') {
+            return $this->error('Only submitted declarations can be marked as requires revision', 422);
+        }
+
+        $record = VerificationRecord::create([
+            'mrv_declaration_id' => $declaration->id,
+            'verifier_id' => Auth::id(),
+            'verification_type' => $request->get('verification_type', 'remote'),
+            'verification_date' => Carbon::now()->toDateString(),
+            'verification_status' => 'requires_revision',
+            'verifier_comments' => $request->get('comments'),
+        ]);
+
+        return $this->success($record, 'Revision requested');
+    }
+
+    public function approveDeclaration(Request $request, int $id)
+    {
+        $request->validate(['score' => 'nullable|numeric|min:0|max:100']);
+        $declaration = MrvDeclaration::findOrFail($id);
+        if ($declaration->status !== 'submitted') {
+            return $this->error('Only submitted declarations can be approved', 422);
+        }
+
+        // Create verification record
+        $record = VerificationRecord::create([
+            'mrv_declaration_id' => $declaration->id,
+            'verifier_id' => Auth::id(),
+            'verification_type' => $request->get('verification_type', 'remote'),
+            'verification_date' => Carbon::now()->toDateString(),
+            'verification_status' => 'approved',
+            'verification_score' => $request->get('score', 85),
+            'verifier_comments' => $request->get('comments'),
+        ]);
+
+        // Move MRV to verified
+        $declaration->update(['status' => 'verified']);
+
+        return $this->success([
+            'declaration' => $declaration,
+            'verification' => $record,
+        ], 'Declaration approved & verified');
+    }
+
+    public function rejectDeclaration(Request $request, int $id)
+    {
+        $request->validate(['reason' => 'required|string']);
+        $declaration = MrvDeclaration::findOrFail($id);
+        if (!in_array($declaration->status, ['submitted', 'draft'])) {
+            return $this->error('Only draft/submitted declarations can be rejected', 422);
+        }
+
+        $record = VerificationRecord::create([
+            'mrv_declaration_id' => $declaration->id,
+            'verifier_id' => Auth::id(),
+            'verification_type' => $request->get('verification_type', 'remote'),
+            'verification_date' => Carbon::now()->toDateString(),
+            'verification_status' => 'rejected',
+            'verifier_comments' => $request->get('reason'),
+        ]);
+
+        $declaration->update(['status' => 'rejected']);
+
+        return $this->success([
+            'declaration' => $declaration,
+            'verification' => $record,
+        ], 'Declaration rejected');
+    }
 }
-
-
-

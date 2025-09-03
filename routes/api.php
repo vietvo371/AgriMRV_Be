@@ -107,6 +107,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('my-verifications', [VerifierController::class, 'myVerifications']);
         Route::get('analytics', [VerifierController::class, 'analytics']);
         Route::get('ai-insights', [VerifierController::class, 'aiInsights']);
+        Route::get('requests/{id}/detail', [VerifierController::class, 'requestDetail']);
+
+        // Actions: draft -> submitted -> verified/rejected
+        Route::post('declarations/{id}/submit', [VerifierController::class, 'submitDeclaration']);
+        Route::post('declarations/{id}/schedule', [VerifierController::class, 'scheduleFieldVisit']);
+        Route::post('declarations/{id}/request-revision', [VerifierController::class, 'requestRevision']);
+        Route::post('declarations/{id}/approve', [VerifierController::class, 'approveDeclaration']);
+        Route::post('declarations/{id}/reject', [VerifierController::class, 'rejectDeclaration']);
     });
 
     // Test route without middleware

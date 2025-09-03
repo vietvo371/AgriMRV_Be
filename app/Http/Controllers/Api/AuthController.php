@@ -7,6 +7,7 @@ use App\Traits\ApiResponseTrait;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -24,16 +25,44 @@ class AuthController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required'],
         ]);
+
         $user = User::where('email', $request->email)->first();
+
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return redirect()->back()->with('error', 'Invalid credentials');
+            return redirect()->back()->with('error', 'Email hoặc mật khẩu không đúng');
         }
-        $token = $user->createToken('user_token')->plainTextToken;
-        return response()->json([
-            'message' => 'Login successful',
-            'user' => new UserResource($user),
-            'token' => $token,
-        ]);
+
+                // Tạo session cho web authentication
+        Auth::login($user);
+
+        // Redirect dựa trên user type
+        return $this->redirectAfterLogin($user);
+    }
+    public function loginView()
+    {
+        return view('page.Auth.Login.index');
+    }
+    /**
+     * Redirect user sau khi login dựa trên user_type
+     */
+    private function redirectAfterLogin($user)
+    {
+        switch ($user->user_type) {
+            case 'verifier':
+                return redirect()->route('verifier.dashboard');
+            case 'farmer':
+                return redirect()->route('dashboard');
+            case 'cooperative':
+                return redirect()->route('dashboard');
+            case 'bank':
+                return redirect()->route('banker.dashboard');
+            case 'government':
+                return redirect()->route('dashboard');
+            case 'buyer':
+                return redirect()->route('dashboard');
+            default:
+                return redirect()->route('dashboard');
+        }
     }
     public function register(RegisterRequest $request)
     {

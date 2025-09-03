@@ -234,14 +234,10 @@ let currentChartType = 'performance';
 let analyticsData = {};
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up axios with authentication token
-    const token = localStorage.getItem('token');
-    if (token) {
-        axios.defaults.headers.common['Authorization'] = 'Bearer ' + token;
-    } else {
-        // Redirect to login if no token
-        window.location.href = '/login';
-        return;
+    // Set up axios with CSRF token for session authentication
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    if (csrfToken) {
+        axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
     }
 
     initializeCharts();
@@ -436,7 +432,7 @@ function initializeCharts() {
 async function loadAnalytics() {
     try {
         const filters = getAnalyticsFilters();
-        const response = await axios.get('/api/verifier/analytics', { params: filters });
+        const response = await axios.get('/verifier/api/analytics', { params: filters });
         analyticsData = response.data.data || {};
 
         updateDashboard();
@@ -589,7 +585,7 @@ function getBenchmarkStatus(yourScore, industryScore) {
 
 async function loadAIInsights() {
     try {
-        const response = await axios.get('/api/verifier/ai-insights');
+        const response = await axios.get('/verifier/api/ai-insights');
         const insights = response.data.data.insights || [];
 
         const container = document.getElementById('aiInsights');
