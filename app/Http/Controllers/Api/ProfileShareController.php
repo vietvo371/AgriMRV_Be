@@ -76,6 +76,7 @@ class ProfileShareController extends Controller
 
         return $this->success([
             'farmer' => [
+                'id' => $user->id,
                 'name' => $user->full_name,
                 'carbon_grade' => $carbonGrade,
                 'location' => $this->getLocationFromCoordinates([
@@ -92,6 +93,75 @@ class ProfileShareController extends Controller
             'credit_score' => $creditScore,
             'share_expires_at' => $profileShare->expires_at->toISOString()
         ], 'Profile data retrieved successfully');
+    }
+
+    /**
+     * Lấy credit data cho banker (public endpoint)
+     */
+    public function getCreditData(string $shareCode)
+    {
+        $profileShare = ProfileShare::where('share_code', $shareCode)
+            ->active()
+            ->first();
+
+        if (!$profileShare) {
+            return $this->error('Share code không hợp lệ hoặc đã hết hạn', 404);
+        }
+
+        $user = $profileShare->user;
+        $farmProfile = FarmProfile::where('user_id', $user->id)->first();
+
+        if (!$farmProfile) {
+            return $this->error('Không tìm thấy farm profile', 404);
+        }
+
+        // Tính toán credit data
+        $creditScore = $this->calculateCreditScore($user->id);
+        $carbonPerformance = $this->calculateCarbonPerformance($user->id);
+        $mrvReliability = $this->calculateMRVReliability($user->id);
+        $carbonReduction = $this->calculateCarbonReduction($user->id);
+
+        // Lấy MRV data
+        $totalDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)->count();
+        $verifiedDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)
+            ->where('status', 'verified')
+            ->count();
+        $completionRate = $totalDeclarations > 0 ? ($verifiedDeclarations / $totalDeclarations) * 100 : 0;
+
+        // Lấy evidence count
+        $evidenceCount = EvidenceFile::whereHas('mrvDeclaration', function($q) use ($user) {
+            $q->where('farm_profile_id', $user->id);
+        })->count();
+
+        // Tính total trees
+        $plots = PlotBoundary::where('farm_profile_id', $farmProfile->id)->get();
+        $totalTrees = $plots->sum(function($plot) {
+            if ($plot->plot_type === 'agroforestry') {
+                return ($plot->area_hectares * 200); // 200 cây/ha
+            }
+            return 0;
+        });
+
+        return $this->success([
+            'credit_data' => [
+                'credit_score' => $creditScore,
+                'carbon_performance' => $carbonPerformance,
+                'mrv_reliability' => $mrvReliability,
+                'carbon_reduction' => $carbonReduction,
+                'farm_profile' => [
+                    'total_area' => $farmProfile->total_area_hectares,
+                    'rice_area' => $farmProfile->rice_area_hectares,
+                    'agroforestry_area' => $farmProfile->agroforestry_area_hectares,
+                ]
+            ],
+            'mrv_data' => [
+                'total_declarations' => $totalDeclarations,
+                'verified_declarations' => $verifiedDeclarations,
+                'evidence_count' => $evidenceCount,
+                'completion_rate' => $completionRate,
+                'total_trees' => $totalTrees
+            ]
+        ], 'Credit data retrieved successfully');
     }
 
     /**

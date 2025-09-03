@@ -284,6 +284,33 @@ class BankController extends Controller
 
         return $this->success($response, 'Information request sent successfully');
     }
+
+    public function createLoanApplication(Request $request)
+    {
+        $request->validate([
+            'farmer_id' => ['required', 'string'],
+            'amount' => ['required', 'integer', 'min:1000000'],
+            'purpose' => ['required', 'string'],
+            'notes' => ['nullable', 'string']
+        ]);
+
+        $banker = $request->user();
+
+        // Mock loan application creation
+        $loanApplication = [
+            'id' => rand(1000, 9999),
+            'farmer_id' => $request->input('farmer_id'),
+            'banker_id' => $banker->id,
+            'amount' => $request->input('amount'),
+            'purpose' => $request->input('purpose'),
+            'notes' => $request->input('notes'),
+            'status' => 'pending',
+            'created_at' => now(),
+            'created_by' => $banker->full_name ?? 'Banker'
+        ];
+
+        return $this->success($loanApplication, 'Loan application created successfully');
+    }
 }
 
 

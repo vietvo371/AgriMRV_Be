@@ -46,4 +46,9 @@ class BankerController extends Controller
     {
         return view('page.Banker.profile');
     }
+
+    public function shareProfile()
+    {
+        return view('page.Banker.share-profile');
+    }
 }

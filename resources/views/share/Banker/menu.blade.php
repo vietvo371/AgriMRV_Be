@@ -42,6 +42,13 @@
     </li>
 
     <li class="nav-item">
+        <a href="{{ route('banker.share-profile') }}" class="nav-link {{ request()->routeIs('banker.share-profile*') ? 'active' : '' }}">
+            <i class="fas fa-qrcode nav-icon"></i>
+            Share Profile
+        </a>
+    </li>
+
+    <li class="nav-item">
         <a href="{{ route('banker.settings') }}" class="nav-link {{ request()->routeIs('banker.settings*') ? 'active' : '' }}">
             <i class="fas fa-cog nav-icon"></i>
             Settings

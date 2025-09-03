@@ -75,6 +75,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::get('/analytics', [App\Http\Controllers\BankerController::class, 'analytics'])->name('analytics');
         Route::get('/settings', [App\Http\Controllers\BankerController::class, 'settings'])->name('settings');
         Route::get('/profile', [App\Http\Controllers\BankerController::class, 'profile'])->name('profile');
+        Route::get('/share-profile', [App\Http\Controllers\BankerController::class, 'shareProfile'])->name('share-profile');
 
         // Web API routes for banker (session authentication)
         Route::get('/api/loan-applications', [App\Http\Controllers\Api\BankController::class, 'loanApplications'])->name('api.loan-applications');
@@ -83,10 +84,11 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::get('/api/reports', [App\Http\Controllers\Api\BankController::class, 'reports'])->name('api.reports');
         Route::get('/api/analytics', [App\Http\Controllers\Api\BankController::class, 'analytics'])->name('api.analytics');
 
-        // Banker action routes
-        Route::post('/api/loans/{record}/approve', [App\Http\Controllers\Api\BankController::class, 'approveLoan'])->name('api.loans.approve');
-        Route::post('/api/loans/{record}/reject', [App\Http\Controllers\Api\BankController::class, 'rejectLoan'])->name('api.loans.reject');
-        Route::post('/api/loans/{record}/request-info', [App\Http\Controllers\Api\BankController::class, 'requestInfo'])->name('api.loans.request-info');
+                    // Banker action routes
+            Route::post('/api/loans/{record}/approve', [App\Http\Controllers\Api\BankController::class, 'approveLoan'])->name('api.loans.approve');
+            Route::post('/api/loans/{record}/reject', [App\Http\Controllers\Api\BankController::class, 'rejectLoan'])->name('api.loans.reject');
+            Route::post('/api/loans/{record}/request-info', [App\Http\Controllers\Api\BankController::class, 'requestInfo'])->name('api.loans.request-info');
+            Route::post('/api/loan-applications', [App\Http\Controllers\Api\BankController::class, 'createLoanApplication'])->name('api.loan-applications.create');
     });
 
     // Legacy bank route (redirect to new banker system)

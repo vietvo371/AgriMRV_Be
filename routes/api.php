@@ -67,12 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('credit/score-breakdown', [CreditController::class, 'scoreBreakdown']);
     Route::get('credit/monthly-change', [CreditController::class, 'monthlyChange']);
 
-    // Credit & Scoring APIs
-    Route::get('credit/profile', [CreditController::class, 'profile']);
-    Route::get('credit/mrv-data', [CreditController::class, 'mrvData']);
-    Route::get('credit/score-history', [CreditController::class, 'scoreHistory']);
-    Route::get('credit/score-breakdown', [CreditController::class, 'scoreBreakdown']);
-    Route::get('credit/monthly-change', [CreditController::class, 'monthlyChange']);
+
 
 
     // Finance & Portfolio APIs
@@ -161,5 +156,6 @@ Route::get('share/ai/{id}', [AiAnalysisController::class, 'sharedShow'])->name('
 // Public Profile Share routes (không cần authentication)
 Route::get('profile/share/{shareCode}', [ProfileShareController::class, 'getSharedProfile']);
 Route::post('profile/share/{shareCode}/copy', [ProfileShareController::class, 'copyShareLink']);
+Route::get('profile/share/{shareCode}/credit-data', [ProfileShareController::class, 'getCreditData']);
 
 
