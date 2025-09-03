@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Reports</h1>
-        <p class="text-muted">Báo cáo tài chính và phân tích hiệu suất</p>
+        <p class="text-muted">Financial reports and performance analysis</p>
     </div>
 @endsection
 
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             console.error('Error loading report history:', error);
-            showError('Không thể tải lịch sử báo cáo');
+            showError('Cannot load report history');
         }
     }
 

@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Verification Requests</h1>
-        <p class="text-muted">Danh sách MRV declarations cần xử lý</p>
+        <p class="text-muted">List of verification requests</p>
     </div>
 @endsection
 
@@ -55,7 +55,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="text-center text-muted">Không có request nào</td>
+                    <td colspan="7" class="text-center text-muted">No requests</td>
                 </tr>
                 @endforelse
             </tbody>

@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Models\FarmProfile;
 use App\Models\EvidenceFile;
 use App\Models\AiAnalysisResult;
+use App\Models\CarbonCredit;
+use App\Models\CarbonTransaction;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
 
@@ -381,9 +383,83 @@ class VerifierController extends Controller
         // Move MRV to verified
         $declaration->update(['status' => 'verified']);
 
+        // === Create Carbon Credit using business logic similar to seeder ===
+        $declaration->loadMissing('farmProfile');
+        $farmProfile = $declaration->farmProfile;
+
+        // Determine credit type based on farm profile ratios
+        $creditType = 'mixed_farming';
+        if ($farmProfile && $farmProfile->total_area_hectares > 0) {
+            $riceRatio = ($farmProfile->rice_area_hectares ?? 0) / $farmProfile->total_area_hectares;
+            $agroRatio = ($farmProfile->agroforestry_area_hectares ?? 0) / $farmProfile->total_area_hectares;
+            if ($riceRatio > 0.7) {
+                $creditType = 'rice_cultivation';
+            } elseif ($agroRatio > 0.5) {
+                $creditType = 'agroforestry';
+            }
+        }
+
+        // Determine credit status distribution: 75% issued, 20% sold, 4% retired, 1% cancelled
+        $rand = rand(1, 100);
+        if ($rand <= 75) {
+            $creditStatus = 'issued';
+        } elseif ($rand <= 95) {
+            $creditStatus = 'sold';
+        } elseif ($rand <= 99) {
+            $creditStatus = 'retired';
+        } else {
+            $creditStatus = 'cancelled';
+        }
+
+        // Amount scales with verification score
+        $baseAmount = (float) ($declaration->estimated_carbon_credits ?? 0);
+        $verificationMultiplier = max(0, min(1, ((float) $record->verification_score) / 100));
+        $finalAmount = round($baseAmount * $verificationMultiplier, 2);
+
+        // Base price by type
+        $basePrices = [
+            'rice_cultivation' => 15,
+            'agroforestry' => 25,
+            'mixed_farming' => 20,
+        ];
+        $pricePerCredit = $basePrices[$creditType] ?? 18;
+
+        $carbonCredit = CarbonCredit::create([
+            'mrv_declaration_id' => $declaration->id,
+            'verification_record_id' => $record->id,
+            'credit_amount' => $finalAmount,
+            'credit_type' => $creditType,
+            'vintage_year' => (int) date('Y'),
+            'certification_standard' => $creditType === 'agroforestry' ? 'VCS' : ($creditType === 'mixed_farming' ? 'CAR' : 'Gold Standard'),
+            'serial_number' => 'CC-' . date('Y') . '-' . strtoupper(substr(sha1($declaration->id . '|' . $record->id . '|' . microtime(true)), 0, 8)),
+            'status' => $creditStatus,
+            'price_per_credit' => $pricePerCredit,
+            'issued_date' => Carbon::now()->toDateString(),
+            'expiry_date' => Carbon::now()->addYears(10)->toDateString(),
+        ]);
+
+        // If credit is sold, immediately create a transaction record
+        $transaction = null;
+        if ($carbonCredit->status === 'sold' && $carbonCredit->credit_amount > 0) {
+            $quantity = min($carbonCredit->credit_amount, 10); // simple cap for immediate sale
+            $transaction = CarbonTransaction::create([
+                'carbon_credit_id' => $carbonCredit->id,
+                'seller_id' => optional($farmProfile)->user_id, // seller is the farmer
+                'buyer_id' => null, // optional: assign in marketplace; left null here
+                'quantity' => $quantity,
+                'price_per_credit' => $carbonCredit->price_per_credit,
+                'total_amount' => round($quantity * $carbonCredit->price_per_credit, 2),
+                'transaction_date' => Carbon::now()->toDateString(),
+                'payment_status' => 'completed',
+                'transaction_hash' => '0x' . substr(md5('transaction|' . $carbonCredit->id . '|' . microtime(true)), 0, 40),
+            ]);
+        }
+
         return $this->success([
             'declaration' => $declaration,
             'verification' => $record,
+            'carbon_credit' => isset($carbonCredit) ? $carbonCredit : null,
+            'transaction' => $transaction,
         ], 'Declaration approved & verified');
     }
 

@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Banker Dashboard</h1>
-        <p class="text-muted">Tổng quan quản lý tài chính và đánh giá rủi ro</p>
+        <p class="text-muted">Overview of financial management and risk assessment</p>
     </div>
 @endsection
 
@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error loading data:', error);
             console.error('Error details:', error.response?.data);
-            showError('Không thể tải dữ liệu dashboard: ' + (error.response?.data?.message || error.message));
+            showError('Cannot load dashboard data: ' + (error.response?.data?.message || error.message));
         }
     }
 

@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Loan Applications</h1>
-        <p class="text-muted">Quản lý và xử lý các đơn vay vốn từ nông dân</p>
+        <p class="text-muted">Manage and process loan applications from farmers</p>
     </div>
 @endsection
 

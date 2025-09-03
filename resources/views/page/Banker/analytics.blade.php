@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Analytics</h1>
-        <p class="text-muted">Phân tích dữ liệu và thống kê tài chính</p>
+        <p class="text-muted">Analyze financial data and statistics</p>
     </div>
 @endsection
 
@@ -290,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             console.error('Error loading analytics data:', error);
-            showError('Không thể tải dữ liệu analytics');
+            showError('Cannot load analytics data');
         }
     }
 
@@ -412,7 +412,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showError(message) {
-        Swal.fire('Lỗi', message, 'error');
+        Swal.fire('Error', message, 'error');
     }
 });
 </script>

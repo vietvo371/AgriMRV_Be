@@ -374,6 +374,49 @@
                 </div>
             </div>
 
+            <!-- Trust & Transparency -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-gradient bg-dark text-white border-0">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-white bg-opacity-20 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                            <span class="fs-4">🔒</span>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 fw-bold">Trust & Transparency</h5>
+                            <small class="opacity-75">Blockchain proofs, verification and credits summary</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <h6 class="fw-bold mb-3">Blockchain Anchors (latest)</h6>
+                            <div id="anchorsList" class="list-group small">
+                                <div class="text-muted">No anchors available</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3">
+                            <h6 class="fw-bold mb-3">Last Verification</h6>
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="mb-1"><span class="text-muted small">Date:</span> <span id="lastVerificationDate">-</span></div>
+                                <div class="mb-1"><span class="text-muted small">Status:</span> <span id="lastVerificationStatus">-</span></div>
+                                <div class="mb-1"><span class="text-muted small">Score:</span> <span id="lastVerificationScore">-</span></div>
+                                <div class="mb-0"><span class="text-muted small">Verifier:</span> <span id="lastVerificationVerifier">-</span></div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3">
+                            <h6 class="fw-bold mb-3">Credits Summary</h6>
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="mb-1"><span class="text-muted small">Total Issued:</span> <span id="totalIssuedCredits">0</span></div>
+                                <div class="mb-1"><span class="text-muted small">Issued Count:</span> <span id="issuedCount">0</span></div>
+                                <div class="mb-1"><span class="text-muted small">Last Issued:</span> <span id="lastIssuedDate">-</span></div>
+                                <div class="mb-0"><span class="text-muted small">Standards:</span> <span id="standardsList">-</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Modern Share Information & Actions -->
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-gradient bg-info text-white border-0">
@@ -635,6 +678,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.data.success) {
                 displayCreditData(response.data.data.credit_data);
                 displayMRVData(response.data.data.mrv_data);
+                displayTransparency(response.data.data.transparency);
+                displayCreditsSummary(response.data.data.credits_summary);
             }
         })
         .catch(error => {
@@ -728,6 +773,56 @@ document.addEventListener('DOMContentLoaded', function() {
             const treePercentage = Math.min((mrvData.total_trees / 1000) * 100, 100);
             document.getElementById('totalTreesBar').style.width = treePercentage + '%';
         }
+    }
+
+    // Display transparency data
+    function displayTransparency(tp) {
+        if (!tp) return;
+        // Anchors
+        const list = document.getElementById('anchorsList');
+        list.innerHTML = '';
+        if (tp.blockchain_anchors && tp.blockchain_anchors.length) {
+            tp.blockchain_anchors.forEach(a => {
+                const url = a.verification_url || '#';
+                const item = document.createElement('a');
+                item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-start';
+                item.href = url;
+                item.target = '_blank';
+                item.rel = 'noopener';
+                item.innerHTML = `
+                    <div class="me-3">
+                        <div class="fw-semibold">${a.record_type} #${a.record_id}</div>
+                        <div class="text-muted small">${a.network} • Block ${a.block_number ?? '-'} • Gas ${a.gas_used ?? '-'}</div>
+                        <div class="text-truncate" style="max-width: 520px;">
+                            <span class="text-muted small">Tx:</span> ${a.transaction_hash}
+                        </div>
+                    </div>
+                    <div class="text-end small text-muted">${a.anchor_timestamp || ''}</div>
+                `;
+                list.appendChild(item);
+            });
+        } else {
+            const empty = document.createElement('div');
+            empty.className = 'text-muted';
+            empty.textContent = 'No anchors available';
+            list.appendChild(empty);
+        }
+
+        // Last verification
+        document.getElementById('lastVerificationDate').textContent = tp.last_verification?.date || '-';
+        document.getElementById('lastVerificationStatus').textContent = tp.last_verification?.status || '-';
+        document.getElementById('lastVerificationScore').textContent = tp.last_verification?.score ?? '-';
+        document.getElementById('lastVerificationVerifier').textContent = tp.last_verification?.verifier_name || '-';
+    }
+
+    // Display credits summary
+    function displayCreditsSummary(cs) {
+        if (!cs) return;
+        document.getElementById('totalIssuedCredits').textContent = (cs.total_issued ?? 0).toLocaleString();
+        document.getElementById('issuedCount').textContent = cs.issued_count ?? 0;
+        document.getElementById('lastIssuedDate').textContent = cs.last_issued_date || '-';
+        const standards = Array.isArray(cs.standards) ? cs.standards.join(', ') : '-';
+        document.getElementById('standardsList').textContent = standards || '-';
     }
 
     // Show loading state

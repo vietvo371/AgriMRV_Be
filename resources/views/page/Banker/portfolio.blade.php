@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Portfolio Management</h1>
-        <p class="text-muted">Quản lý danh mục đầu tư và theo dõi hiệu suất</p>
+        <p class="text-muted">Manage investment portfolio and track performance</p>
     </div>
 @endsection
 
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             console.error('Error loading portfolio data:', error);
-            showError('Không thể tải dữ liệu portfolio');
+            showError('Cannot load portfolio data');
         }
     }
 

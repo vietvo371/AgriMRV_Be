@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Verifier Dashboard</h1>
-        <p class="text-muted">Tổng quan xác minh MRV và quản lý verification requests</p>
+        <p class="text-muted">Dashboard for verifier</p>
     </div>
 @endsection
 
@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error loading data:', error);
             console.error('Error details:', error.response?.data);
-            showError('Không thể tải dữ liệu dashboard: ' + (error.response?.data?.message || error.message));
+            showError('Cannot load dashboard data: ' + (error.response?.data?.message || error.message));
         }
     }
 
@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const tbody = document.getElementById('requestsTableBody');
 
         if (requests.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Không có verification requests</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No verification requests</td></tr>';
             return;
         }
 
@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error approving declaration:', error);
             console.error('Error response:', error.response?.data);
-            showError('Không thể approve declaration: ' + (error.response?.data?.message || error.message));
+            showError('Cannot approve declaration: ' + (error.response?.data?.message || error.message));
         }
     }
 
@@ -507,7 +507,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Error rejecting declaration:', error);
             console.error('Error response:', error.response?.data);
-            showError('Không thể reject declaration: ' + (error.response?.data?.message || error.message));
+            showError('Cannot reject declaration: ' + (error.response?.data?.message || error.message));
         }
     }
 
@@ -517,7 +517,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showError(message) {
-        Swal.fire('Lỗi', message, 'error');
+        Swal.fire('Error', message, 'error');
     }
 });
 </script>

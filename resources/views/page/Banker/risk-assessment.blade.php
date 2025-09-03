@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Risk Assessment</h1>
-        <p class="text-muted">Đánh giá và quản lý rủi ro tín dụng</p>
+        <p class="text-muted">Credit risk assessment and management</p>
     </div>
 @endsection
 
@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             console.error('Error loading risk assessment data:', error);
-            showError('Không thể tải dữ liệu risk assessment');
+            showError('Cannot load risk assessment data');
         }
     }
 

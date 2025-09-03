@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Profile</h1>
-        <p class="text-muted">Thông tin cá nhân và cài đặt tài khoản</p>
+        <p class="text-muted">Personal information and account settings</p>
     </div>
 @endsection
 

@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Verification Reports</h1>
-        <p class="text-muted">Báo cáo và thống kê verification activities</p>
+        <p class="text-muted">Reports and statistics for verification activities</p>
     </div>
 @endsection
 
@@ -198,6 +198,9 @@
 <script>
 let statusChart, trendChart, scoreChart, regionChart;
 let reportData = [];
+let isGeneratingReport = false;
+let chartsInitialized = false;
+let generateReportDebounce;
 
 document.addEventListener('DOMContentLoaded', function() {
     // Set up axios with CSRF token for session authentication
@@ -216,7 +219,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('endDate').value = today.toISOString().split('T')[0];
 
     // Generate initial report
-    generateReport();
+    // Debounce initial call slightly to avoid duplicate invocations in certain navigators
+    clearTimeout(generateReportDebounce);
+    generateReportDebounce = setTimeout(() => generateReport(), 0);
 });
 
 function setupEventListeners() {
@@ -233,6 +238,7 @@ function setupEventListeners() {
 }
 
 function initializeCharts() {
+    if (chartsInitialized) return;
     // Status Distribution Chart
     const statusCtx = document.getElementById('statusChart').getContext('2d');
     statusChart = new Chart(statusCtx, {
@@ -320,9 +326,12 @@ function initializeCharts() {
             }
         }
     });
+    chartsInitialized = true;
 }
 
 async function generateReport() {
+    if (isGeneratingReport) return;
+    isGeneratingReport = true;
     try {
         const filters = getFilters();
         showLoading();
@@ -339,9 +348,10 @@ async function generateReport() {
 
     } catch (error) {
         console.error('Error generating report:', error);
-        showError('Không thể tạo báo cáo');
+        showError('Unable to generate report');
         hideLoading();
     }
+    isGeneratingReport = false;
 }
 
 function getFilters() {
@@ -472,7 +482,7 @@ function updateReportTable() {
     const tbody = document.getElementById('reportTableBody');
 
     if (reportData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Không có dữ liệu</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No data available</td></tr>';
         return;
     }
 
@@ -555,11 +565,11 @@ function hideLoading() {
 }
 
 function showError(message) {
-    Swal.fire('Lỗi', message, 'error');
+    Swal.fire('Error', message, 'error');
 }
 
 function showSuccess(message) {
-    Swal.fire('Thành công', message, 'success');
+    Swal.fire('Success', message, 'success');
 }
 </script>
 @endsection

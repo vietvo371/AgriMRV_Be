@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Verification Analytics</h1>
-        <p class="text-muted">Phân tích sâu và insights về verification performance</p>
+        <p class="text-muted">In-depth analysis and insights on verification performance</p>
     </div>
 @endsection
 
@@ -232,6 +232,9 @@
 let performanceChart, riskMatrixChart, methodEffectivenessChart, regionalChart, carbonDistributionChart, forecastChart;
 let currentChartType = 'performance';
 let analyticsData = {};
+let isLoadingAnalytics = false;
+let chartsInitialized = false;
+let loadAnalyticsDebounce;
 
 document.addEventListener('DOMContentLoaded', function() {
     // Set up axios with CSRF token for session authentication
@@ -241,10 +244,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     initializeCharts();
-    loadAnalytics();
+    clearTimeout(loadAnalyticsDebounce);
+    loadAnalyticsDebounce = setTimeout(() => loadAnalytics(), 0);
 });
 
 function initializeCharts() {
+    if (chartsInitialized) return;
     // Performance Chart
     const perfCtx = document.getElementById('performanceChart').getContext('2d');
     performanceChart = new Chart(perfCtx, {
@@ -427,9 +432,12 @@ function initializeCharts() {
             }
         }
     });
+    chartsInitialized = true;
 }
 
 async function loadAnalytics() {
+    if (isLoadingAnalytics) return;
+    isLoadingAnalytics = true;
     try {
         const filters = getAnalyticsFilters();
         const response = await axios.get('/verifier/api/analytics', { params: filters });
@@ -442,8 +450,9 @@ async function loadAnalytics() {
 
     } catch (error) {
         console.error('Error loading analytics:', error);
-        showError('Không thể tải analytics data');
+        showError('Unable to load analytics data');
     }
+    isLoadingAnalytics = false;
 }
 
 function getAnalyticsFilters() {
@@ -615,14 +624,14 @@ async function loadAIInsights() {
     }
 }
 
-function switchChart(type) {
+function switchChart(type, el) {
     currentChartType = type;
 
     // Update active button state
     document.querySelectorAll('.chart-header .btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    event.target.classList.add('active');
+    if (el) el.classList.add('active');
 
     // Update chart data based on type
     const data = analyticsData[`${type}_trends`] || {};
@@ -640,7 +649,7 @@ function updateAnalytics() {
 }
 
 function showError(message) {
-    Swal.fire('Lỗi', message, 'error');
+    Swal.fire('Error', message, 'error');
 }
 </script>
 @endsection

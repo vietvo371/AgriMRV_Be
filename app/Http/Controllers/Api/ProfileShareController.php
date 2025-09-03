@@ -5,6 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ProfileShare;
 use App\Models\User;
+use App\Models\FarmProfile;
+use App\Models\MrvDeclaration;
+use App\Models\EvidenceFile;
+use App\Models\PlotBoundary;
+use App\Models\BlockchainAnchor;
+use App\Models\CarbonCredit;
+use App\Models\VerificationRecord;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -122,25 +129,78 @@ class ProfileShareController extends Controller
         $carbonReduction = $this->calculateCarbonReduction($user->id);
 
         // Lấy MRV data
-        $totalDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)->count();
-        $verifiedDeclarations = MrvDeclaration::where('farm_profile_id', $user->id)
+        $farmProfileId = $farmProfile->id;
+        $declarationsQuery = MrvDeclaration::where('farm_profile_id', $farmProfileId);
+        $totalDeclarations = (clone $declarationsQuery)->count();
+        $verifiedDeclarations = (clone $declarationsQuery)
             ->where('status', 'verified')
             ->count();
         $completionRate = $totalDeclarations > 0 ? ($verifiedDeclarations / $totalDeclarations) * 100 : 0;
 
         // Lấy evidence count
-        $evidenceCount = EvidenceFile::whereHas('mrvDeclaration', function($q) use ($user) {
-            $q->where('farm_profile_id', $user->id);
+        $evidenceCount = EvidenceFile::whereHas('mrvDeclaration', function($q) use ($farmProfileId) {
+            $q->where('farm_profile_id', $farmProfileId);
         })->count();
 
         // Tính total trees
-        $plots = PlotBoundary::where('farm_profile_id', $farmProfile->id)->get();
+        $plots = PlotBoundary::where('farm_profile_id', $farmProfileId)->get();
         $totalTrees = $plots->sum(function($plot) {
             if ($plot->plot_type === 'agroforestry') {
                 return ($plot->area_hectares * 200); // 200 cây/ha
             }
             return 0;
         });
+
+        // Transparency: Blockchain anchors and verification summary
+        $declarationIds = (clone $declarationsQuery)->pluck('id');
+        $verificationIds = VerificationRecord::whereIn('mrv_declaration_id', $declarationIds)->pluck('id');
+        $creditIds = CarbonCredit::whereIn('mrv_declaration_id', $declarationIds)
+            ->orWhereIn('verification_record_id', $verificationIds)
+            ->pluck('id');
+
+        $anchors = BlockchainAnchor::where(function($q) use ($declarationIds, $verificationIds, $creditIds) {
+                $q->where(function($q1) use ($declarationIds) {
+                        $q1->where('record_type', 'mrv_declaration')
+                            ->whereIn('record_id', $declarationIds);
+                    })
+                  ->orWhere(function($q2) use ($verificationIds) {
+                        $q2->where('record_type', 'verification_record')
+                            ->whereIn('record_id', $verificationIds);
+                    })
+                  ->orWhere(function($q3) use ($creditIds) {
+                        $q3->where('record_type', 'carbon_credit')
+                            ->whereIn('record_id', $creditIds);
+                    });
+            })
+            ->orderByDesc('anchor_timestamp')
+            ->limit(5)
+            ->get()
+            ->map(function ($a) {
+                return [
+                    'record_type' => $a->record_type,
+                    'record_id' => $a->record_id,
+                    'network' => $a->blockchain_network,
+                    'transaction_hash' => $a->transaction_hash,
+                    'block_number' => $a->block_number,
+                    'gas_used' => $a->gas_used,
+                    'anchor_timestamp' => optional($a->anchor_timestamp)->toISOString(),
+                    'verification_url' => $a->verification_url,
+                ];
+            });
+
+        // Verification summary
+        $lastVerification = VerificationRecord::whereIn('mrv_declaration_id', $declarationIds)
+            ->orderByDesc('verification_date')
+            ->with('verifier')
+            ->first();
+
+        // Credits summary
+        $issuedCreditsQuery = CarbonCredit::whereIn('mrv_declaration_id', $declarationIds)
+            ->where('status', 'issued');
+        $totalIssuedCredits = (clone $issuedCreditsQuery)->sum('credit_amount');
+        $issuedCount = (clone $issuedCreditsQuery)->count();
+        $lastIssued = (clone $issuedCreditsQuery)->orderByDesc('issued_date')->first();
+        $standards = (clone $issuedCreditsQuery)->select('certification_standard')->distinct()->pluck('certification_standard')->filter()->values();
 
         return $this->success([
             'credit_data' => [
@@ -160,6 +220,21 @@ class ProfileShareController extends Controller
                 'evidence_count' => $evidenceCount,
                 'completion_rate' => $completionRate,
                 'total_trees' => $totalTrees
+            ],
+            'transparency' => [
+                'blockchain_anchors' => $anchors,
+                'last_verification' => $lastVerification ? [
+                    'date' => optional($lastVerification->verification_date)->toDateString(),
+                    'status' => $lastVerification->verification_status,
+                    'score' => $lastVerification->verification_score,
+                    'verifier_name' => optional($lastVerification->verifier)->full_name,
+                ] : null,
+            ],
+            'credits_summary' => [
+                'total_issued' => (float) $totalIssuedCredits,
+                'issued_count' => $issuedCount,
+                'last_issued_date' => optional(optional($lastIssued)->issued_date)->toDateString(),
+                'standards' => $standards,
             ]
         ], 'Credit data retrieved successfully');
     }
@@ -362,6 +437,35 @@ class ProfileShareController extends Controller
             ->exists();
     }
 
+    // --- Added lightweight scoring helpers for public credit-data ---
+    private function calculateCarbonPerformance(int $userId): float
+    {
+        $farmProfile = \App\Models\FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) return 0.0;
+        $avg = \App\Models\MrvDeclaration::where('farm_profile_id', $farmProfile->id)
+            ->avg('carbon_performance_score');
+        return round((float) ($avg ?? 0), 2);
+    }
+
+    private function calculateMRVReliability(int $userId): float
+    {
+        $farmProfile = \App\Models\FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) return 0.0;
+        $avg = \App\Models\MrvDeclaration::where('farm_profile_id', $farmProfile->id)
+            ->avg('mrv_reliability_score');
+        return round((float) ($avg ?? 0), 2);
+    }
+
+    private function calculateCarbonReduction(int $userId): float
+    {
+        $farmProfile = \App\Models\FarmProfile::where('user_id', $userId)->first();
+        if (!$farmProfile) return 0.0;
+        // Proxy by estimated_carbon_credits normalized to percentage-like scale (cap 100)
+        $sum = (float) \App\Models\MrvDeclaration::where('farm_profile_id', $farmProfile->id)
+            ->sum('estimated_carbon_credits');
+        $scaled = min(100.0, $sum); // Assuming credits already scaled reasonably in mock/demo
+        return round($scaled, 2);
+    }
     private function getLocationFromCoordinates(array $coordinates): string
     {
         if (empty($coordinates) || !isset($coordinates['latitude']) || !isset($coordinates['longitude'])) {

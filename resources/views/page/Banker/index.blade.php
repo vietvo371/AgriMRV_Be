@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Banker Portal</h1>
-        <p class="text-muted">Quản lý hồ sơ vay vốn carbon</p>
+        <p class="text-muted">Manage loan applications</p>
     </div>
 @endsection
 
@@ -41,7 +41,7 @@
                             </td>
                         </tr>
                         <tr v-if="rows.length === 0">
-                            <td colspan="6" class="text-center text-muted">Không có hồ sơ</td>
+                            <td colspan="6" class="text-center text-muted">No applications</td>
                         </tr>
                     </tbody>
                 </table>

@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Request Review</h1>
-        <p class="text-muted">Chi tiết và xem xét MRV verification requests</p>
+        <p class="text-muted">Details and review of MRV verification requests</p>
     </div>
 @endsection
 
@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (requestId) {
         loadRequestDetails(requestId);
     } else {
-        showError('Không tìm thấy Request ID');
+        showError('Request ID not found');
     }
 });
 
@@ -304,7 +304,7 @@ async function loadRequestDetails(requestId) {
         updateUI();
     } catch (error) {
         console.error('Error loading request details:', error);
-        showError('Không thể tải chi tiết request');
+        showError('Unable to load request details');
     }
 }
 
@@ -406,34 +406,36 @@ function updateEvidenceFiles(files) {
     const container = document.getElementById('evidenceFiles');
 
     if (files.length === 0) {
-        container.innerHTML = '<div class="col-12 text-center text-muted">Không có evidence files</div>';
+        container.innerHTML = '<div class="col-12 text-center text-muted">No evidence files</div>';
         return;
     }
 
-    container.innerHTML = files.map(file => `
+    container.innerHTML = files.map(file => {
+        const url = resolveEvidenceUrl(file.file_url || file.path || '');
+        return `
         <div class="col-md-4 col-lg-3">
             <div class="card h-100">
-                <img src="${file.file_url}" class="card-img-top" alt="${file.file_type}" style="height: 150px; object-fit: cover;">
+                <img src="${url}" class="card-img-top" alt="${file.file_type}" style="height: 150px; object-fit: cover;">
                 <div class="card-body">
                     <h6 class="card-title">${file.file_type}</h6>
                     <p class="card-text small">${file.description || 'No description'}</p>
                     <small class="text-muted">${formatDate(file.capture_timestamp)}</small>
                 </div>
                 <div class="card-footer">
-                    <button class="btn btn-sm btn-outline-primary" onclick="viewFile('${file.file_url}')">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewFile('${url}')">
                         <i class="fa fa-eye"></i> View
                     </button>
                 </div>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 function updateAIAnalysis(results) {
     const container = document.getElementById('aiAnalysis');
 
     if (!results || results.length === 0) {
-        container.innerHTML = '<div class="col-12 text-center text-muted">Không có AI analysis results</div>';
+        container.innerHTML = '<div class="col-12 text-center text-muted">No AI analysis results</div>';
         return;
     }
 
@@ -483,13 +485,44 @@ function formatDate(dateString) {
     return date.toLocaleDateString('vi-VN');
 }
 
+// Chuẩn hóa URL evidence về dạng tuyệt đối: http(s)://host/storage/uploads/evidence/...,
+// đồng thời loại bỏ tiền tố không mong muốn như '@' hoặc '/verifier/request'
+function resolveEvidenceUrl(raw) {
+    if (!raw) return '';
+    let url = String(raw).trim();
+
+    // Bỏ ký tự '@' nếu có
+    if (url.startsWith('@')) url = url.slice(1);
+
+    // Nếu là URL đầy đủ, chỉ cần loại bỏ phần '/verifier/request' nếu có
+    if (/^https?:\/\//i.test(url)) {
+        return url.replace('/verifier/request', '');
+    }
+
+    // Loại bỏ prefix route không mong muốn
+    url = url.replace(/^\/?verifier\/request\/?/i, '/');
+
+    // Chuẩn hóa các trường hợp đường dẫn tương đối
+    if (url.startsWith('/storage/uploads/evidence')) {
+        // đã đúng định dạng gốc storage
+    } else if (url.startsWith('/uploads/evidence')) {
+        url = '/storage' + url;
+    } else if (url.startsWith('uploads/evidence')) {
+        url = '/storage/' + url;
+    }
+
+    if (!url.startsWith('/')) url = '/' + url;
+
+    return window.location.origin + url;
+}
+
 // Verification Actions
 function scheduleFieldVisit() {
     if (!currentRequest) return;
 
-    // Kiểm tra status declaration
+    // Status check
     if (currentRequest.declaration?.status !== 'submitted') {
-        showError('Chỉ có thể schedule field visit cho declarations đã submitted');
+        showError('You can only schedule a field visit for submitted declarations');
         return;
     }
 
@@ -527,10 +560,10 @@ function scheduleFieldVisit() {
             try {
                 await axios.post(`/verifier/api/declarations/${requestId}/schedule`, result.value);
                 showSuccess('Field visit scheduled successfully');
-                // Reload details để cập nhật status
+                // Reload details to update status
                 await loadRequestDetails(requestId);
             } catch (e) {
-                showError('Không thể schedule field visit: ' + (e.response?.data?.message || e.message));
+                showError('Unable to schedule field visit: ' + (e.response?.data?.message || e.message));
             }
         }
     });
@@ -539,9 +572,9 @@ function scheduleFieldVisit() {
 function requestAdditionalEvidence() {
     if (!currentRequest) return;
 
-    // Kiểm tra status declaration
+    // Status check
     if (currentRequest.declaration?.status !== 'submitted') {
-        showError('Chỉ có thể yêu cầu evidence cho declarations đã submitted');
+        showError('You can only request evidence for submitted declarations');
         return;
     }
 
@@ -552,7 +585,7 @@ function requestAdditionalEvidence() {
         inputPlaceholder: 'Describe what additional evidence is needed...',
         inputValidator: (value) => {
             if (!value || value.trim().length < 10) {
-                return 'Vui lòng nhập ít nhất 10 ký tự mô tả yêu cầu evidence';
+                return 'Please enter at least 10 characters describing the evidence requirements';
             }
         },
         showCancelButton: true,
@@ -566,10 +599,10 @@ function requestAdditionalEvidence() {
                     verification_type: 'remote'
                 });
                 showSuccess('Evidence request sent successfully');
-                // Reload details để cập nhật status
+                // Reload details to update status
                 await loadRequestDetails(requestId);
             } catch (e) {
-                showError('Không thể gửi yêu cầu evidence: ' + (e.response?.data?.message || e.message));
+                showError('Unable to send evidence request: ' + (e.response?.data?.message || e.message));
             }
         }
     });
@@ -578,9 +611,9 @@ function requestAdditionalEvidence() {
 function approveRequest() {
     if (!currentRequest) return;
 
-    // Kiểm tra status declaration
+    // Status check
     if (currentRequest.declaration?.status !== 'submitted') {
-        showError('Chỉ có thể approve declarations đã submitted');
+        showError('You can only approve submitted declarations');
         return;
     }
 
@@ -631,10 +664,10 @@ function approveRequest() {
                     comments: result.value.comments || null
                 });
                 showSuccess('Request approved successfully');
-                // Reload details để cập nhật status
+                // Reload details to update status
                 await loadRequestDetails(requestId);
             } catch (e) {
-                showError('Không thể approve request: ' + (e.response?.data?.message || e.message));
+                showError('Unable to approve request: ' + (e.response?.data?.message || e.message));
             }
         }
     });
@@ -643,9 +676,9 @@ function approveRequest() {
 function requestRevision() {
     if (!currentRequest) return;
 
-    // Kiểm tra status declaration
+    // Status check
     if (currentRequest.declaration?.status !== 'submitted') {
-        showError('Chỉ có thể yêu cầu revision cho declarations đã submitted');
+        showError('You can only request revision for submitted declarations');
         return;
     }
 
@@ -656,7 +689,7 @@ function requestRevision() {
         inputPlaceholder: 'Describe what needs to be revised...',
         inputValidator: (value) => {
             if (!value || value.trim().length < 10) {
-                return 'Vui lòng nhập ít nhất 10 ký tự mô tả yêu cầu revision';
+                return 'Please enter at least 10 characters describing the revision requirements';
             }
         },
         showCancelButton: true,
@@ -670,10 +703,10 @@ function requestRevision() {
                     verification_type: 'remote'
                 });
                 showSuccess('Revision request sent successfully');
-                // Reload details để cập nhật status
+                // Reload details to update status
                 await loadRequestDetails(requestId);
             } catch (e) {
-                showError('Không thể gửi yêu cầu revision: ' + (e.response?.data?.message || e.message));
+                showError('Unable to send revision request: ' + (e.response?.data?.message || e.message));
             }
         }
     });
@@ -682,9 +715,9 @@ function requestRevision() {
 function rejectRequest() {
     if (!currentRequest) return;
 
-    // Kiểm tra status declaration - chỉ cho phép reject submitted declarations
+    // Status check - only allow reject for submitted
     if (currentRequest.declaration?.status !== 'submitted') {
-        showError('Chỉ có thể reject declarations đã submitted');
+        showError('You can only reject submitted declarations');
         return;
     }
 
@@ -728,10 +761,10 @@ function rejectRequest() {
                     verification_type: result.value.verification_type
                 });
                 showSuccess('Request rejected successfully');
-                // Reload details để cập nhật status
+                // Reload details to update status
                 await loadRequestDetails(requestId);
             } catch (e) {
-                showError('Không thể reject request: ' + (e.response?.data?.message || e.message));
+                showError('Unable to reject request: ' + (e.response?.data?.message || e.message));
             }
         }
     });
@@ -740,7 +773,7 @@ function rejectRequest() {
 function saveNotes() {
     const notes = document.getElementById('verificationNotes').value;
     if (!notes.trim()) {
-        showError('Vui lòng nhập verification notes');
+        showError('Please enter verification notes');
         return;
     }
     showSuccess('Notes saved locally');
@@ -749,9 +782,9 @@ function saveNotes() {
 async function submitDeclaration() {
     if (!currentRequest) return;
 
-    // Kiểm tra status declaration
+    // Status check
     if (currentRequest.declaration?.status !== 'draft') {
-        showError('Chỉ có thể submit declarations đang ở trạng thái draft');
+        showError('You can only submit declarations in draft status');
         return;
     }
 
@@ -769,10 +802,10 @@ async function submitDeclaration() {
         try {
             await axios.post(`/verifier/api/declarations/${requestId}/submit`);
             showSuccess('Declaration submitted successfully');
-            // Reload details để cập nhật status
+            // Reload details to update status
             await loadRequestDetails(requestId);
         } catch (e) {
-            showError('Không thể submit declaration: ' + (e.response?.data?.message || e.message));
+            showError('Unable to submit declaration: ' + (e.response?.data?.message || e.message));
         }
     }
 }
@@ -782,11 +815,11 @@ function viewFile(fileUrl) {
 }
 
 function showError(message) {
-    Swal.fire('Lỗi', message, 'error');
+    Swal.fire('Error', message, 'error');
 }
 
 function showSuccess(message) {
-    Swal.fire('Thành công', message, 'success');
+    Swal.fire('Success', message, 'success');
 }
 </script>
 @endsection

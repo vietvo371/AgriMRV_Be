@@ -3,7 +3,7 @@
 @section('title')
     <div>
         <h1 class="mb-1">Schedule Management</h1>
-        <p class="text-muted">Quản lý lịch trình field visits và verification appointments</p>
+        <p class="text-muted">Manage field visits and verification appointments</p>
     </div>
 @endsection
 
@@ -181,7 +181,7 @@ async function loadScheduledVisits() {
 
     } catch (error) {
         console.error('Error loading scheduled visits:', error);
-        showError('Không thể tải dữ liệu lịch trình');
+        showError('Cannot load schedule data');
     }
 }
 
@@ -208,7 +208,7 @@ function updateVisitsTable() {
     const tbody = document.getElementById('visitsTableBody');
 
     if (scheduledVisits.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Không có lịch trình nào</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No schedule</td></tr>';
         return;
     }
 
@@ -317,7 +317,7 @@ async function saveSchedule() {
     };
 
     if (!formData.farmer || !formData.visit_date || !formData.start_time) {
-        showError('Vui lòng điền đầy đủ thông tin bắt buộc');
+        showError('Please fill in all required information');
         return;
     }
 
@@ -327,14 +327,14 @@ async function saveSchedule() {
 
         // Close modal and refresh
         bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
-        showSuccess('Đã lên lịch thành công');
+        showSuccess('Schedule created successfully');
 
         // Refresh data
         loadScheduledVisits();
 
     } catch (error) {
         console.error('Error scheduling visit:', error);
-        showError('Không thể lên lịch');
+        showError('Cannot schedule visit');
     }
 }
 
@@ -375,11 +375,11 @@ function formatDate(dateString) {
 }
 
 function showError(message) {
-    Swal.fire('Lỗi', message, 'error');
+    Swal.fire('Error', message, 'error');
 }
 
 function showSuccess(message) {
-    Swal.fire('Thành công', message, 'success');
+    Swal.fire('Success', message, 'success');
 }
 </script>
 @endsection
