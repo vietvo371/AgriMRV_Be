@@ -438,21 +438,29 @@ class VerifierController extends Controller
             'expiry_date' => Carbon::now()->addYears(10)->toDateString(),
         ]);
 
-        // If credit is sold, immediately create a transaction record
+        // If credit is sold, immediately create a transaction record (assign a buyer)
         $transaction = null;
         if ($carbonCredit->status === 'sold' && $carbonCredit->credit_amount > 0) {
-            $quantity = min($carbonCredit->credit_amount, 10); // simple cap for immediate sale
-            $transaction = CarbonTransaction::create([
-                'carbon_credit_id' => $carbonCredit->id,
-                'seller_id' => optional($farmProfile)->user_id, // seller is the farmer
-                'buyer_id' => null, // optional: assign in marketplace; left null here
-                'quantity' => $quantity,
-                'price_per_credit' => $carbonCredit->price_per_credit,
-                'total_amount' => round($quantity * $carbonCredit->price_per_credit, 2),
-                'transaction_date' => Carbon::now()->toDateString(),
-                'payment_status' => 'completed',
-                'transaction_hash' => '0x' . substr(md5('transaction|' . $carbonCredit->id . '|' . microtime(true)), 0, 40),
-            ]);
+            $buyerId = \App\Models\User::where('user_type', 'buyer')->inRandomOrder()->value('id');
+            $sellerId = optional($farmProfile)->user_id;
+
+            if ($buyerId && $sellerId) {
+                $quantity = min($carbonCredit->credit_amount, 10); // simple cap for immediate sale
+                $transaction = CarbonTransaction::create([
+                    'carbon_credit_id' => $carbonCredit->id,
+                    'seller_id' => $sellerId,
+                    'buyer_id' => $buyerId,
+                    'quantity' => $quantity,
+                    'price_per_credit' => $carbonCredit->price_per_credit,
+                    'total_amount' => round($quantity * $carbonCredit->price_per_credit, 2),
+                    'transaction_date' => Carbon::now()->toDateString(),
+                    'payment_status' => 'completed',
+                    'transaction_hash' => '0x' . substr(md5('transaction|' . $carbonCredit->id . '|' . microtime(true)), 0, 40),
+                ]);
+            } else {
+                // No buyer or seller available; keep credit as issued instead of sold
+                $carbonCredit->update(['status' => 'issued']);
+            }
         }
 
         return $this->success([

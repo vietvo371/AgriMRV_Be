@@ -17,6 +17,8 @@ use App\Models\TrainingRecord;
 use App\Models\FinancialRecord;
 use App\Models\BlockchainAnchor;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -98,105 +100,106 @@ class DatabaseSeeder extends Seeder
 
     private function createUsers()
     {
-        // Create 15 farmers with diverse data
+        // Create 15 farmers with diverse data (India-localized)
         for ($i = 1; $i <= 15; $i++) {
             User::create([
                 'email' => "farmer{$i}@example.com",
-                'phone' => '+8409' . str_pad((string)(12345670 + $i), 7, '0', STR_PAD_LEFT),
+                'phone' => '+91' . str_pad((string)(900000000 + $i), 10, '0', STR_PAD_LEFT),
                 'full_name' => 'Farmer ' . $i,
                 'date_of_birth' => date('Y-m-d', strtotime('-' . (25 + $i) . ' years')),
                 'user_type' => 'farmer',
-                'gps_latitude' => 9.5 + ($i * 0.1),
-                'gps_longitude' => 105.0 + ($i * 0.1),
-                'organization_name' => 'Farmer Household ' . $i,
+                // Approx India centroid ranges: 8-35 N, 68-97 E
+                'gps_latitude' => 8.0 + ($i * 1.2),
+                'gps_longitude' => 68.0 + ($i * 1.4),
+                'organization_name' => 'Kisan Household ' . $i,
                 'organization_type' => 'individual',
-                'address' => 'Mekong Delta, Viet Nam',
+                'address' => ['Punjab, India', 'Uttar Pradesh, India', 'Maharashtra, India', 'Tamil Nadu, India', 'Assam, India'][$i % 5],
                 'password' => Hash::make('12345678'),
                 'avatar' => 'https://ui-avatars.com/api/?name=Farmer+' . $i . '&background=random&size=200'
             ]);
         }
 
-        // Create 3 cooperatives
+        // Create 3 cooperatives (India-localized)
         for ($i = 1; $i <= 3; $i++) {
             User::create([
                 'email' => "coop{$i}@example.com",
-                'phone' => '+8403' . str_pad((string)(22222220 + $i), 7, '0', STR_PAD_LEFT),
-                'full_name' => 'Cooperative ' . $i,
+                'phone' => '+91' . str_pad((string)(730000000 + $i), 10, '0', STR_PAD_LEFT),
+                'full_name' => 'FPO Cooperative ' . $i,
                 'date_of_birth' => '1990-01-01',
                 'user_type' => 'cooperative',
-                'gps_latitude' => 10.0 + $i * 0.05,
-                'gps_longitude' => 106.0 + $i * 0.05,
-                'organization_name' => 'Co-op ' . $i,
+                'gps_latitude' => 15.0 + $i * 0.5,
+                'gps_longitude' => 75.0 + $i * 0.5,
+                'organization_name' => 'FPO ' . $i,
                 'organization_type' => 'cooperative',
-                'address' => 'Viet Nam',
+                'address' => ['Gujarat, India', 'Karnataka, India', 'Bihar, India'][$i % 3],
                 'password' => Hash::make('12345678'),
-                'avatar' => 'https://ui-avatars.com/api/?name=Co-op+' . $i . '&background=random&size=200'
+                'avatar' => 'https://ui-avatars.com/api/?name=FPO+' . $i . '&background=random&size=200'
             ]);
         }
 
-        // Create 3 verifiers
+        // Create 3 verifiers (India-localized)
         for ($i = 1; $i <= 3; $i++) {
             User::create([
                 'email' => "verifier{$i}@example.com",
-                'phone' => '+8407' . str_pad((string)(33333330 + $i), 7, '0', STR_PAD_LEFT),
+                'phone' => '+91' . str_pad((string)(790000000 + $i), 10, '0', STR_PAD_LEFT),
                 'full_name' => 'Verifier Team ' . $i,
                 'date_of_birth' => '1988-08-20',
                 'user_type' => 'verifier',
-                'gps_latitude' => 21.0 + $i * 0.02,
-                'gps_longitude' => 105.8 + $i * 0.02,
-                'organization_name' => 'Carbon Verify ' . $i,
+                'gps_latitude' => 22.0 + $i * 0.2,
+                'gps_longitude' => 78.0 + $i * 0.2,
+                'organization_name' => 'Carbon Verify India ' . $i,
                 'organization_type' => 'verification_company',
-                'address' => 'Ha Noi, Viet Nam',
+                'address' => 'New Delhi, India',
                 'password' => Hash::make('12345678'),
                 'avatar' => 'https://ui-avatars.com/api/?name=Verifier+' . $i . '&background=random&size=200'
             ]);
         }
 
-        // Create 1 bank
+        // Create 1 bank (India-localized)
         User::create([
             'email' => 'bank@example.com',
-            'phone' => '+840912345999',
-            'full_name' => 'Agri Finance Bank',
+            'phone' => '+91123456999',
+            'full_name' => 'NABARD Partner Bank',
             'date_of_birth' => '1985-01-01',
             'user_type' => 'bank',
-            'gps_latitude' => 10.762622,
-            'gps_longitude' => 106.660172,
-            'organization_name' => 'AgriBank',
+            'gps_latitude' => 19.0760,
+            'gps_longitude' => 72.8777,
+            'organization_name' => 'AgriBank India',
             'organization_type' => 'bank',
-            'address' => 'Ho Chi Minh City',
+            'address' => 'Mumbai, India',
             'password' => Hash::make('12345678'),
-            'avatar' => 'https://ui-avatars.com/api/?name=AgriBank&background=random&size=200'
+            'avatar' => 'https://ui-avatars.com/api/?name=AgriBank+IN&background=random&size=200'
         ]);
 
-        // Create 1 government
+        // Create 1 government (India-localized)
         User::create([
             'email' => 'government@example.com',
-            'phone' => '+840912345888',
-            'full_name' => 'Ministry of Agriculture',
+            'phone' => '+91123456888',
+            'full_name' => 'Ministry of Agriculture & Farmers Welfare',
             'date_of_birth' => '1980-01-01',
             'user_type' => 'government',
-            'gps_latitude' => 21.0285,
-            'gps_longitude' => 105.8542,
-            'organization_name' => 'MOA',
+            'gps_latitude' => 28.6139,
+            'gps_longitude' => 77.2090,
+            'organization_name' => 'MoAFW',
             'organization_type' => 'government',
-            'address' => 'Ha Noi, Viet Nam',
+            'address' => 'New Delhi, India',
             'password' => Hash::make('12345678'),
-            'avatar' => 'https://ui-avatars.com/api/?name=MOA&background=random&size=200'
+            'avatar' => 'https://ui-avatars.com/api/?name=MoAFW&background=random&size=200'
         ]);
 
-        // Create 2 buyers
+        // Create 2 buyers (India-localized)
         for ($i = 1; $i <= 2; $i++) {
             User::create([
                 'email' => "buyer{$i}@example.com",
-                'phone' => '+8409' . str_pad((string)(55555550 + $i), 7, '0', STR_PAD_LEFT),
+                'phone' => '+91' . str_pad((string)(950000000 + $i), 10, '0', STR_PAD_LEFT),
                 'full_name' => 'Carbon Buyer ' . $i,
                 'date_of_birth' => '1982-01-01',
                 'user_type' => 'buyer',
-                'gps_latitude' => 10.0 + $i * 0.1,
-                'gps_longitude' => 106.0 + $i * 0.1,
+                'gps_latitude' => 13.0827 + $i * 0.1,
+                'gps_longitude' => 80.2707 + $i * 0.1,
                 'organization_name' => 'Carbon Corp ' . $i,
                 'organization_type' => 'corporation',
-                'address' => 'Ho Chi Minh City',
+                'address' => 'Chennai, India',
                 'password' => Hash::make('12345678'),
                 'avatar' => 'https://ui-avatars.com/api/?name=Carbon+Buyer+' . $i . '&background=random&size=200'
             ]);
@@ -207,12 +210,12 @@ class DatabaseSeeder extends Seeder
     {
         $farmers = User::where('user_type', 'farmer')->get();
         foreach ($farmers as $idx => $farmer) {
-            // Đảm bảo diện tích lúa đủ lớn để tính toán carbon reduction có ý nghĩa
-            // Tổng diện tích: 8-99.5 ha (tăng dần theo từng farmer)
+            // India-localized farm sizes
+            // Total area: ~6-90 ha (scaled)
             $totalArea = 8 + ($idx * 6.5);
-            // Diện tích lúa: 5-65 ha (đủ để tạo carbon reduction đáng kể)
+            // Rice area: ensure meaningful carbon reduction
             $riceArea = 5 + ($idx * 4.0);
-            // Diện tích nông lâm kết hợp: 1.5-31.5 ha (đủ để trồng cây có ý nghĩa)
+            // Agroforestry area: meaningful tree cover
             $agroArea = 1.5 + ($idx * 2.0);
 
             FarmProfile::create([
@@ -222,8 +225,8 @@ class DatabaseSeeder extends Seeder
                 'agroforestry_area_hectares' => $agroArea,
                 'primary_crop_type' => ['Rice', 'Rice', 'Rice', 'Rice', 'Rice'][$idx % 5],
                 'farming_experience_years' => 2 + $idx * 2,
-                'irrigation_type' => ['AWD', 'Flood irrigation', 'AWD', 'Sprinkler', 'AWD'][$idx % 5],
-                'soil_type' => ['Sandy loam', 'Clay loam', 'Silt loam', 'Sandy clay', 'Loamy sand'][$idx % 5],
+                'irrigation_type' => ['AWD', 'Canal', 'Tube well', 'Sprinkler', 'Drip'][$idx % 5],
+                'soil_type' => ['Alluvial', 'Black (Regur)', 'Red', 'Laterite', 'Sandy loam'][$idx % 5],
             ]);
         }
     }
@@ -259,7 +262,7 @@ class DatabaseSeeder extends Seeder
     private function createMrvDeclarations()
     {
         $farmProfiles = FarmProfile::all();
-        $quarters = ['2024-Q1', '2024-Q2', '2023-Q4', '2023-Q3'];
+        $quarters = ['2024-Kharif', '2024-Rabi', '2023-Kharif', '2023-Rabi'];
 
         foreach ($farmProfiles as $idx => $farmProfile) {
             // Tạo 1-3 báo cáo MRV cho mỗi farm (để có dữ liệu đa dạng)
@@ -283,7 +286,7 @@ class DatabaseSeeder extends Seeder
                     $riceArea = $farmProfile->rice_area_hectares;
                     $agroArea = $farmProfile->agroforestry_area_hectares;
 
-                    // === CÔNG THỨC TÍNH CARBON REDUCTION CHO LÚA AWD ===
+                    // === India context: AWD and straw management assumptions ===
                     // baselineCH4 = 1.2 tCO₂e/ha/season (methane từ ruộng ngập nước truyền thống)
                     // awdReduction = 0.36 tCO₂e/ha/season (30% giảm methane từ AWD)
                     // strawAvoidance = 0.3 tCO₂e/ha/season (không đốt rơm rạ)
@@ -331,17 +334,17 @@ class DatabaseSeeder extends Seeder
                         'rice_sowing_date' => date('Y-m-d', strtotime('-' . (90 + $d * 30) . ' days')),
                         'rice_harvest_date' => date('Y-m-d', strtotime('-' . (30 + $d * 30) . ' days')),
                         'awd_cycles_per_season' => 2 + ($idx % 3),
-                        'water_management_method' => ['Alternate wetting and drying', 'Flood irrigation', 'Sprinkler irrigation'][$idx % 3],
-                        'straw_management' => ['Incorporated into soil', 'Burned', 'Removed from field', 'Left on field'][$idx % 4],
+                        'water_management_method' => ['Alternate wetting and drying', 'Canal irrigation', 'Tube well pumping'][$idx % 3],
+                        'straw_management' => ['Incorporated', 'Removed', 'Mulched', 'Left on field'][$idx % 4],
                         'tree_density_per_hectare' => $treeDensity,
                         'tree_species' => [
-                            ['Mangrove', 'Acacia', 'Eucalyptus'],
+                            ['Neem', 'Acacia', 'Eucalyptus'],
                             ['Bamboo', 'Teak', 'Mahogany'],
                             ['Coconut', 'Mango', 'Jackfruit']
                         ][$idx % 3],
                         'intercrop_species' => [
-                            ['Beans', 'Peanuts', 'Soybeans'],
-                            ['Corn', 'Cassava', 'Sweet potato'],
+                            ['Pulses', 'Groundnut', 'Soybeans'],
+                            ['Maize', 'Millets', 'Sweet potato'],
                             ['Vegetables', 'Herbs', 'Fruits']
                         ][$idx % 3],
                         'planting_date' => date('Y-m-d', strtotime('-' . (180 + $d * 30) . ' days')),
@@ -366,17 +369,39 @@ class DatabaseSeeder extends Seeder
 
             for ($f = 1; $f <= $numFiles; $f++) {
                 $fileType = $fileTypes[($idx + $f) % count($fileTypes)];
+                // Create placeholder image in storage if not exists
+                $dir = 'public/uploads/evidence';
+                if (!Storage::exists($dir)) {
+                    Storage::makeDirectory($dir);
+                }
+                $fileName = strtolower($fileType) . '_' . $declaration->id . '_' . $f . '_' . Str::random(6) . '.jpg';
+                $relativePath = $dir . '/' . $fileName;
+                if (!Storage::exists($relativePath)) {
+                    // Generate a simple JPEG placeholder
+                    $img = imagecreatetruecolor(800, 600);
+                    $bg = imagecolorallocate($img, 240, 248, 255);
+                    imagefilledrectangle($img, 0, 0, 800, 600, $bg);
+                    $textColor = imagecolorallocate($img, 50, 50, 70);
+                    imagestring($img, 5, 20, 20, 'AgriMRV Evidence', $textColor);
+                    imagestring($img, 4, 20, 50, strtoupper($fileType), $textColor);
+                    imagestring($img, 3, 20, 80, 'Decl ID: ' . $declaration->id, $textColor);
+                    ob_start();
+                    imagejpeg($img, null, 80);
+                    $jpegData = ob_get_clean();
+                    imagedestroy($img);
+                    Storage::put($relativePath, $jpegData);
+                }
 
                 EvidenceFile::create([
                     'mrv_declaration_id' => $declaration->id,
                     'file_type' => $fileType,
-                    'file_url' => "https://example.com/{$fileType}_{$declaration->id}_{$f}.jpg",
-                    'file_name' => "{$fileType}_{$declaration->id}_{$f}.jpg",
+                    'file_url' => Storage::url('uploads/evidence/' . $fileName),
+                    'file_name' => $fileName,
                     'file_size_bytes' => 1024 * 1024 + ($idx * 100000),
-                    'gps_latitude' => 10.0 + ($declaration->id / 1000) + ($f * 0.001),
-                    'gps_longitude' => 105.0 + ($declaration->id / 1000) + ($f * 0.001),
+                    'gps_latitude' => 20.0 + ($declaration->id / 1000) + ($f * 0.001),
+                    'gps_longitude' => 78.0 + ($declaration->id / 1000) + ($f * 0.001),
                     'capture_timestamp' => date('Y-m-d H:i:s', strtotime('-' . ($f * 2) . ' hours', strtotime($declaration->created_at))),
-                    'description' => ucfirst($fileType) . ' for declaration ' . $declaration->id . ' - file ' . $f,
+                    'description' => ucfirst(str_replace('_',' ', $fileType)) . ' for declaration ' . $declaration->id . ' - file ' . $f,
                 ]);
             }
         }

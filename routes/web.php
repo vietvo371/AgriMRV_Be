@@ -58,7 +58,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('/api/declarations/{id}/submit', [App\Http\Controllers\Api\VerifierController::class, 'submitDeclaration'])->name('api.declarations.submit');
         Route::post('/api/declarations/{id}/schedule', [App\Http\Controllers\Api\VerifierController::class, 'scheduleFieldVisit'])->name('api.declarations.schedule');
         Route::post('/api/declarations/{id}/request-revision', [App\Http\Controllers\Api\VerifierController::class, 'requestRevision'])->name('api.declarations.request-revision');
-        Route::post('/api/declarations/{id}/approve', [App\Http\Controllers\Api\VerifierController::class, 'apprưoveDeclaration'])->name('api.declarations.approve');
+        Route::post('/api/declarations/{id}/approve', [App\Http\Controllers\Api\VerifierController::class, 'approveDeclaration'])->name('api.declarations.approve');
         Route::post('/api/declarations/{id}/reject', [App\Http\Controllers\Api\VerifierController::class, 'rejectDeclaration'])->name('api.declarations.reject');
     });
 

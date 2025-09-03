@@ -373,7 +373,7 @@ class PlotController extends Controller
                 'carbon_performance_score' => $cp,
                 'mrv_reliability_score' => $mr,
                 'estimated_carbon_credits' => $est,
-                'status' => 'draft',
+                'status' => 'submitted',
             ]);
 
             if ($request->hasFile('evidence_files')) {
